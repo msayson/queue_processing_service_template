@@ -1,0 +1,35 @@
+{
+  "name": "queue-processing-service-infrastructure",
+  "version": "0.1.0",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest",
+    "test:update": "jest --updateSnapshot",
+    "cdk": "cdk"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "roots": ["<rootDir>/test"],
+    "testMatch": ["**/*.test.ts"],
+    "transform": {
+      "^.+\\.[tj]sx?$": ["ts-jest", {}]
+    },
+    "transformIgnorePatterns": [
+      "/node_modules/(?!(aws-cdk-lib)/)"
+    ]
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^24.0.0",
+    "aws-cdk": "^2.1118.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.3.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.248.0",
+    "constructs": "^10.6.0"
+  }
+}
