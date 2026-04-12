@@ -20,10 +20,12 @@ dependencies {
     testImplementation(kotlin("test"))
     testImplementation("org.mockito.kotlin:mockito-kotlin:6.3.0")
     testImplementation("org.mockito:mockito-core:5.23.0")
-}
 
-tasks.test {
-    useJUnitPlatform()
+    // Testcontainers for local integration testing.
+    // See: https://java.testcontainers.org/quickstart/junit_5_quickstart/
+    testImplementation("org.testcontainers:localstack:1.21.4")
+    testImplementation("org.testcontainers:testcontainers:2.0.3")
+    testImplementation("org.testcontainers:testcontainers-junit-jupiter:2.0.3")
 }
 
 application {
@@ -32,4 +34,30 @@ application {
 
 kotlin {
     jvmToolchain(25)
+}
+
+tasks.test {
+    useJUnitPlatform {
+        excludeTags("localIntegTest")
+    }
+}
+
+val localIntegTest = tasks.register<Test>("localIntegTest") {
+    description = "Runs local integration tests."
+    group = "verification"
+
+    useJUnitPlatform {
+        includeTags("localIntegTest")
+    }
+
+    shouldRunAfter(tasks.test)
+
+    onlyIf {
+        System.getProperty("runLocalIntegTests") == "true"
+    }
+
+    // Disable JaCoCo for integ tests
+    extensions.configure(org.gradle.testing.jacoco.plugins.JacocoTaskExtension::class) {
+        isEnabled = false
+    }
 }
