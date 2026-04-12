@@ -8,9 +8,9 @@ repositories {
 }
 
 dependencies {
-    implementation(platform("aws.sdk.kotlin:bom:1.3.92"))
-    implementation("aws.sdk.kotlin:sqs")
-    implementation("aws.sdk.kotlin:cloudwatch")
+    implementation(platform("aws.sdk.kotlin:bom:1.6.56"))
+    implementation("aws.sdk.kotlin:sqs:1.6.56")
+    implementation("aws.sdk.kotlin:cloudwatch:1.6.56")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     implementation("io.github.oshai:kotlin-logging-jvm:7.0.14")
     implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.25.4")
