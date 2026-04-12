@@ -1,5 +1,0 @@
-{
-  "kotlin.languageServer.enabled": true,
-  "kotlin.compiler.jvm.target": "25",
-  "java.configuration.updateBuildConfiguration": "automatic"
-}
