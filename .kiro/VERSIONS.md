@@ -43,4 +43,4 @@ This is the single source of truth for all dependency and tool versions used in 
 | Image | Version |
 |-------|---------|
 | Build stage | `amazoncorretto:25-alpine-jdk` |
-| Runtime stage | `amazoncorretto:25-alpine-jre` |
+| Runtime stage | `amazoncorretto:25-alpine-jdk` |
