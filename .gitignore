@@ -26,3 +26,6 @@ replay_pid*
 # IDE files
 .idea/
 .vscode/
+
+# Local LLM config
+.claude/settings.local.json
