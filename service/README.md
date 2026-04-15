@@ -22,6 +22,18 @@ export AWS_REGION=us-east-1
 docker build -t queue-processing-service:latest .
 ```
 
+## Local Integration Tests
+
+Requires Docker to be installed and running.
+
+If using Docker Desktop, start the Docker Desktop application before running, otherwise integration tests may fail with a `java.lang.IllegalStateException: Could not find a valid Docker environment. Please see logs and check configuration` error.
+
+```bash
+./gradlew localIntegTest -DrunLocalIntegTests=true
+```
+
+This uses Testcontainers + LocalStack to spin up a local SQS instance, then runs the actual `QueuePoller` and `TemplateMessageProcessor` against it to verify end-to-end message processing and deletion.
+
 ## Structure
 
 - `src/main/kotlin/com/template/queue/` - Application code

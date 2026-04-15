@@ -49,6 +49,6 @@ docker buildx build --platform linux/arm64 -t queue-processing-service:latest .
 
 ## Testing
 
-Tests use JUnit 5 + Mockito (`mockito-kotlin`). Coroutine tests use `runTest` from `kotlinx.coroutines.test`. All AWS SDK clients are mocked at the test boundary — no real AWS calls are made in tests.
+Unit tests use JUnit 5 + Mockito (`mockito-kotlin`). Coroutine tests use `runTest` from `kotlinx.coroutines.test`. All AWS SDK clients are mocked at the test boundary.
 
-Test files mirror the main source structure under `src/test/kotlin/com/template/queue/`.
+Local integration tests live under `src/test/kotlin/com/template/queue/localinteg/` and are tagged `@Tag("localIntegTest")`. See `service/README.md` for how to run them.
