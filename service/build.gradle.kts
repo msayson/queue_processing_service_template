@@ -1,6 +1,7 @@
 plugins {
     kotlin("jvm") version "2.3.20"
     application
+    jacoco
 }
 
 repositories {
@@ -36,9 +37,31 @@ kotlin {
     jvmToolchain(25)
 }
 
+jacoco {
+    toolVersion = "0.8.13"
+}
+
 tasks.test {
     useJUnitPlatform {
         excludeTags("localIntegTest")
+    }
+
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.jacocoTestReport {
+    reports {
+        html.required.set(true)
+    }
+}
+
+tasks.jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            limit {
+                minimum = "0.95".toBigDecimal()
+            }
+        }
     }
 }
 
