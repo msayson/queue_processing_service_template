@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Multi-stage build for minimal image size
 FROM amazoncorretto:25-alpine-jdk AS build
 WORKDIR /app
@@ -12,8 +13,14 @@ RUN mkdir -p /root/.gradle && \
     printf 'org.gradle.java.home=%s\norg.gradle.java.installations.auto-download=false\norg.gradle.java.installations.paths=%s\n' \
     "$JAVA_HOME" "$JAVA_HOME" > /root/.gradle/gradle.properties
 
-# Resolve and download all dependencies before copying source.
-RUN ./gradlew --no-daemon dependencies
+# Resolve and download runtime dependencies before copying source.
+# Scoped to runtimeClasspath to avoid downloading test-only dependencies (Testcontainers,
+# Mockito, JUnit) here — those are fetched during the build step instead.
+# This layer is only invalidated when build.gradle.kts or settings.gradle.kts change,
+# not on every source code change. The wrapper cache mount avoids re-downloading
+# the Gradle distribution (~150MB) on every build.
+RUN --mount=type=cache,target=/root/.gradle/wrapper/dists \
+    ./gradlew --no-daemon dependencies --configuration runtimeClasspath
 
 # Copy source code and build
 COPY src ./src
