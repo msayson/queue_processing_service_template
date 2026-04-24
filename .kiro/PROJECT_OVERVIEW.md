@@ -69,8 +69,9 @@ queue_processing_service_template/
 ├── .kiro/                          # Kiro steering documents
 │   ├── PROJECT_OVERVIEW.md         # This file
 │   ├── INFRASTRUCTURE.md           # CDK infrastructure guidance
-│   ├── SERVICE_IMPLEMENTATION.md   # Kotlin service guidance
-│   └── DEPLOYMENT.md               # Build and deployment guidance
+│   ├── DEPLOYMENT.md               # Build and deployment guidance
+│   └── steering/
+│       └── service-implementation.md  # Kotlin service guidance (service/** only)
 ├── infrastructure/                 # AWS CDK code (TypeScript)
 │   ├── bin/                        # CDK app entry point
 │   ├── lib/                        # CDK stack definitions

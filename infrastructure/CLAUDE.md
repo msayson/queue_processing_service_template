@@ -20,8 +20,10 @@ cdk bootstrap  # one-time setup per account/region
 ## Stacks
 
 **`VpcStack`** (`lib/vpc-stack.ts`) — deployed first; exports `vpc` to the service stack.
-- Private VPC: 2 AZs, public + private subnets (`/24` each), 1 NAT gateway
-- Fargate tasks run in the private subnets with egress via the NAT gateway
+- Fully private VPC: 2 AZs, isolated private subnets (`/24` each), no internet gateway, no NAT gateway
+- VPC interface endpoints: ECR API, ECR Docker, CloudWatch Logs, SQS, STS
+- VPC gateway endpoint: S3 (free; ECR stores image layers in S3)
+- Fargate tasks have no internet egress; all AWS API calls route through the VPC endpoints
 
 **`QueueProcessingServiceStack`** (`lib/queue-processing-stack.ts`) — consumes `vpc` via props.
 - **SQS input queue** — 300 s visibility timeout, KMS-managed encryption, SSL enforced; routes to DLQ after 5 failed receives
