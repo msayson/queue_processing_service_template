@@ -1,6 +1,6 @@
 # Queue Processing Service Template
 
-A production-ready template for building AWS-hosted queue processing services in Kotlin. This template provides a complete foundation for services that poll SQS queues, process messages idempotently, handle failures gracefully, and emit comprehensive observability metrics.
+A template for building an AWS ECS Fargate queue processing service in Kotlin. This template provides infrastructure and service code for a service behind a private subset that polls an input SQS queue, processes messages idempotently, handles failures gracefully, and emits observability metrics to CloudWatch.
 
 ## Features
 
@@ -8,8 +8,7 @@ A production-ready template for building AWS-hosted queue processing services in
 - **Infrastructure as Code**: Complete AWS CDK setup in TypeScript
 - **AWS ECS Fargate**: Serverless container hosting with auto-scaling capabilities
 - **SQS Integration**: Long polling, batch processing, automatic retries, and DLQ
-- **Observability**: CloudWatch Logs and custom metrics for full visibility
-- **Production-Ready**: Error handling, retry logic, idempotency patterns
+- **Observability**: CloudWatch logs and custom metrics for visibility
 - **Template Design**: Minimal implementation for easy extension
 
 ## Architecture
