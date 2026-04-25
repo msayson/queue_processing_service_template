@@ -7,7 +7,10 @@ describe('QueueProcessingServiceStack', () => {
   test('matches snapshot', () => {
     const app = new App();
     const { vpc } = new VpcStack(app, 'TestVpcStack');
-    const stack = new QueueProcessingServiceStack(app, 'TestStack', { vpc });
+    const stack = new QueueProcessingServiceStack(app, 'TestStack', {
+      vpc,
+      queueName: 'TestQueue',
+    });
     expect(Template.fromStack(stack).toJSON()).toMatchSnapshot();
   });
 });

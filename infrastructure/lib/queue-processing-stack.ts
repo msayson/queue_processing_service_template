@@ -10,6 +10,7 @@ import { Queue, QueueEncryption } from 'aws-cdk-lib/aws-sqs';
 import { Construct } from 'constructs';
 
 export interface QueueProcessingServiceStackProps extends StackProps {
+  readonly queueName: string;
   readonly vpc: Vpc;
 }
 
@@ -34,6 +35,7 @@ export class QueueProcessingServiceStack extends Stack {
     const deadLetterQueue = new Queue(this, 'DeadLetterQueue', {
       encryption: QueueEncryption.KMS_MANAGED,
       enforceSSL: true,
+      queueName: `${props.queueName}-DLQ`,
       retentionPeriod: Duration.days(14),
     });
 
@@ -45,6 +47,7 @@ export class QueueProcessingServiceStack extends Stack {
       },
       encryption: QueueEncryption.KMS_MANAGED,
       enforceSSL: true,
+      queueName: props.queueName,
       visibilityTimeout: Duration.seconds(300),
     });
 
@@ -79,6 +82,7 @@ export class QueueProcessingServiceStack extends Stack {
     }));
 
     const logGroup = new LogGroup(this, 'LogGroup', {
+      logGroupName: '/ecs/queue-processing-service',
       retention: RetentionDays.ONE_MONTH,
       removalPolicy: RemovalPolicy.DESTROY,
     });
@@ -144,26 +148,18 @@ export class QueueProcessingServiceStack extends Stack {
       ],
       adjustmentType: AdjustmentType.CHANGE_IN_CAPACITY,
       cooldown: Duration.minutes(1),
-      evaluationPeriods: 15,
-      datapointsToAlarm: 15,
+      evaluationPeriods: 10, // 10 consecutive minutes of idleness before scale down to 0
     });
 
-    // Backlog-per-task target tracking: wake the service from 0 and maintain
-    // BACKLOG_PER_TASK messages per running task.
+    // Sizes the fleet to BACKLOG_PER_TASK messages per task, and wakes the
+    // service from 0 when messages arrive.
     //
-    // The expression handles three cases:
-    //   tasks = 0, messages = 0  →  0       (no action)
-    //   tasks = 0, messages > 0  →  1       (> target → scale from 0 to 1)
-    //   tasks > 0                →  messages / tasks  (steady-state sizing)
+    // Uses CfnScalingPolicy because higher-level constructs do not support MathExpression.
     //
-    // Returning BACKLOG_PER_TASK + 1 (rather than the raw message count) when
-    // tasks = 0 guarantees a scale-out signal for any queue depth, including
-    // fewer than BACKLOG_PER_TASK messages. After the first task starts,
-    // target tracking resumes normal ratio-based sizing.
-    //
-    // CDK's L2 target tracking rejects MathExpression; CfnScalingPolicy (L1)
-    // is used to bypass that validation while the AWS API supports it natively.
-    // Container Insights (enabled on the cluster above) provides RunningTaskCount.
+    // activeTasks = MAX(FILL(running, 0), FILL(desired, 0)): Container Insights
+    // stops publishing both metrics when no tasks are active, so FILL prevents
+    // missing data from suppressing scale-out. MAX of running and desired covers
+    // the provisioning window, preventing repeated wake-up signals that overshoot.
     new CfnScalingPolicy(this, 'BacklogPerTaskPolicy', {
       policyName: 'BacklogPerTask',
       policyType: 'TargetTrackingScaling',
@@ -173,8 +169,8 @@ export class QueueProcessingServiceStack extends Stack {
         // Longer scale-in cooldown avoids churning tasks during brief queue lulls;
         // the idle shutdown step policy handles the final scale-to-zero.
         scaleInCooldown: Duration.minutes(10).toSeconds(),
-        // Short scale-out cooldown so new tasks start quickly when backlog grows.
-        scaleOutCooldown: Duration.minutes(1).toSeconds(),
+        // Allow time for Container Insights to publish DesiredTaskCount to prevent overshoot.
+        scaleOutCooldown: Duration.minutes(3).toSeconds(),
         customizedMetricSpecification: {
           metrics: [
             {
@@ -190,7 +186,7 @@ export class QueueProcessingServiceStack extends Stack {
               returnData: false,
             },
             {
-              id: 'tasks',
+              id: 'running',
               metricStat: {
                 metric: {
                   namespace: 'ECS/ContainerInsights',
@@ -205,8 +201,32 @@ export class QueueProcessingServiceStack extends Stack {
               returnData: false,
             },
             {
+              id: 'desired',
+              metricStat: {
+                metric: {
+                  namespace: 'ECS/ContainerInsights',
+                  metricName: 'DesiredTaskCount',
+                  dimensions: [
+                    { name: 'ClusterName', value: cluster.clusterName },
+                    { name: 'ServiceName', value: service.serviceName },
+                  ],
+                },
+                stat: 'Average',
+              },
+              returnData: false,
+            },
+            {
+              // Use max of running and desired tasks, filled to 0, to prevent a feedback loop
+              // where the expression returns the wake-up signal (BACKLOG_PER_TASK + 1)
+              // on every evaluation while the service is starting up (desired > 0 but running = 0).
+              // Using IF because MAX isn't supported for CloudWatch time series.
+              id: 'activeTasks',
+              expression: 'IF(FILL(running, 0) > FILL(desired, 0), FILL(running, 0), FILL(desired, 0))',
+              returnData: false,
+            },
+            {
               id: 'backlogPerTask',
-              expression: `IF(tasks < 1, IF(messages > 0, ${QueueProcessingServiceStack.BACKLOG_PER_TASK + 1}, 0), messages / tasks)`,
+              expression: `IF(activeTasks < 1, IF(messages > 0, ${QueueProcessingServiceStack.BACKLOG_PER_TASK + 1}, 0), messages / activeTasks)`,
               returnData: true,
             },
           ],

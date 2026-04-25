@@ -12,4 +12,8 @@ const env = {
 
 const { vpc } = new VpcStack(app, 'VpcStack', { env });
 
-new QueueProcessingServiceStack(app, 'QueueProcessingServiceStack', { env, vpc });
+new QueueProcessingServiceStack(app, 'QueueProcessingServiceStack', {
+  env,
+  vpc,
+  queueName: process.env.QUEUE_NAME!,
+});

@@ -76,7 +76,7 @@ exports[`QueueProcessingServiceStack matches snapshot 1`] = `
                 "ReturnData": false,
               },
               {
-                "Id": "tasks",
+                "Id": "running",
                 "MetricStat": {
                   "Metric": {
                     "Dimensions": [
@@ -104,14 +104,47 @@ exports[`QueueProcessingServiceStack matches snapshot 1`] = `
                 "ReturnData": false,
               },
               {
-                "Expression": "IF(tasks < 1, IF(messages > 0, 101, 0), messages / tasks)",
+                "Id": "desired",
+                "MetricStat": {
+                  "Metric": {
+                    "Dimensions": [
+                      {
+                        "Name": "ClusterName",
+                        "Value": {
+                          "Ref": "ClusterEB0386A7",
+                        },
+                      },
+                      {
+                        "Name": "ServiceName",
+                        "Value": {
+                          "Fn::GetAtt": [
+                            "ServiceD69D759B",
+                            "Name",
+                          ],
+                        },
+                      },
+                    ],
+                    "MetricName": "DesiredTaskCount",
+                    "Namespace": "ECS/ContainerInsights",
+                  },
+                  "Stat": "Average",
+                },
+                "ReturnData": false,
+              },
+              {
+                "Expression": "IF(FILL(running, 0) > FILL(desired, 0), FILL(running, 0), FILL(desired, 0))",
+                "Id": "activeTasks",
+                "ReturnData": false,
+              },
+              {
+                "Expression": "IF(activeTasks < 1, IF(messages > 0, 101, 0), messages / activeTasks)",
                 "Id": "backlogPerTask",
                 "ReturnData": true,
               },
             ],
           },
           "ScaleInCooldown": 600,
-          "ScaleOutCooldown": 60,
+          "ScaleOutCooldown": 180,
           "TargetValue": 100,
         },
       },
@@ -133,6 +166,7 @@ exports[`QueueProcessingServiceStack matches snapshot 1`] = `
       "Properties": {
         "KmsMasterKeyId": "alias/aws/sqs",
         "MessageRetentionPeriod": 1209600,
+        "QueueName": "TestQueue-DLQ",
       },
       "Type": "AWS::SQS::Queue",
       "UpdateReplacePolicy": "Delete",
@@ -174,6 +208,7 @@ exports[`QueueProcessingServiceStack matches snapshot 1`] = `
       "DeletionPolicy": "Delete",
       "Properties": {
         "KmsMasterKeyId": "alias/aws/sqs",
+        "QueueName": "TestQueue",
         "RedrivePolicy": {
           "deadLetterTargetArn": {
             "Fn::GetAtt": [
@@ -224,6 +259,7 @@ exports[`QueueProcessingServiceStack matches snapshot 1`] = `
     "LogGroupF5B46931": {
       "DeletionPolicy": "Delete",
       "Properties": {
+        "LogGroupName": "/ecs/queue-processing-service",
         "RetentionInDays": 30,
       },
       "Type": "AWS::Logs::LogGroup",
@@ -356,8 +392,7 @@ exports[`QueueProcessingServiceStack matches snapshot 1`] = `
         ],
         "AlarmDescription": "Lower threshold scaling alarm",
         "ComparisonOperator": "LessThanOrEqualToThreshold",
-        "DatapointsToAlarm": 15,
-        "EvaluationPeriods": 15,
+        "EvaluationPeriods": 10,
         "Metrics": [
           {
             "Expression": "visible + notVisible",

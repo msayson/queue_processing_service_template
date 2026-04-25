@@ -51,6 +51,7 @@ npm install
 
 export QUEUE_PROCESSING_ACCOUNT="$AWS_ACCOUNT_ID"
 export QUEUE_PROCESSING_REGION="$AWS_REGION"
+export QUEUE_NAME="QueueProcessingService-InputQueue"
 
 echo "==> Bootstrapping CDK environment (safe to re-run)..."
 npx cdk bootstrap "aws://$AWS_ACCOUNT_ID/$AWS_REGION"

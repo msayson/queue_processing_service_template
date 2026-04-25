@@ -89,11 +89,12 @@ What the script does:
 
 ```bash
 # View logs
+# Note: when running on Windows, may need to use following instead to avoid the log group name being interpreted as a local filepath: MSYS_NO_PATHCONV=1 aws logs tail "/ecs/queue-processing-service" --follow
 aws logs tail /ecs/queue-processing-service --follow
 
 # Send a test message (replace QUEUE_URL with the QueueUrl stack output)
 aws sqs send-message \
-  --queue-url QUEUE_URL \
+  --queue-url "https://sqs.${REGION}.amazonaws.com/${ACCOUNT_ID}/QueueProcessingService-InputQueue" \
   --message-body '{"eventType":"TEST","data":"Hello World"}'
 ```
 
