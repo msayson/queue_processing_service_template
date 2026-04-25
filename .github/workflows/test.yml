@@ -1,0 +1,55 @@
+name: Unit tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  service:
+    name: Service (Kotlin)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: service
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 25 (Amazon Corretto)
+        uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: '25'
+
+      - name: Build and test
+        run: gradle wrapper build
+
+      - name: Upload test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-test-report
+          path: service/build/reports/tests/test/
+
+  infrastructure:
+    name: Infrastructure (CDK)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infrastructure
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: infrastructure/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and test
+        run: npm test
