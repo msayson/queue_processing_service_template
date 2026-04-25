@@ -1,7 +1,6 @@
 import { Stack, StackProps } from 'aws-cdk-lib';
 import {
   GatewayVpcEndpointAwsService,
-  InterfaceVpcEndpointAwsService,
   SubnetType,
   Vpc,
 } from 'aws-cdk-lib/aws-ec2';

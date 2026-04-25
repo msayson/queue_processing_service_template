@@ -1,6 +1,8 @@
 # Queue Processing Service Template
 
-A template for building an AWS ECS Fargate queue processing service in Kotlin. This template provides infrastructure and service code for a service behind a private subset that polls an input SQS queue, processes messages idempotently, handles failures gracefully, and emits observability metrics to CloudWatch.
+A template for building an AWS ECS Fargate queue processing service in Kotlin. This template provides infrastructure and service code for a service behind a private subset that polls an input SQS queue, auto-scales up/down based on backlog size, processes messages idempotently, handles failures gracefully, and emits observability metrics to CloudWatch.
+
+Hosting ECS compute services in a private subset is a recommended default for ensuring the service is only accessible from allow-listed services, and not from the public internet.  For low-risk personal projects with non-sensitive data, you can lower costs by hosting the service in a public subset and dropping the NAT gateway to save $32/month.
 
 ## Features
 
