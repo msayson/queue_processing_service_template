@@ -165,14 +165,8 @@ To build your own queue processing service:
 
 ## Key Features
 
-### Idempotency
-The template is designed for idempotent processing. Extending projects should implement idempotency using:
-- Idempotency keys (store message ID before processing)
-- Conditional database operations
-- Immutable operations
-
 ### Error Handling
-- **Transient failures**: Automatic retry with exponential backoff (via SQS visibility timeout)
+- **Transient failures**: Automatic retry after SQS visibility timeout
 - **Permanent failures**: After 5 retries, messages move to DLQ
 - **Comprehensive logging**: All failures logged with full context
 - **Metrics**: Success and failure metrics for monitoring
@@ -184,24 +178,12 @@ The template is designed for idempotent processing. Extending projects should im
 - **SQS Metrics**: Queue depth, message age, DLQ count
 
 ### Scalability
-- **Current capacity**: Handles ~7 messages/minute (10k/day) with single task
-- **Horizontal scaling**: Auto-scales based on CPU (55-85% target) and queue depth
-- **Scale to zero**: All environments scale to 0 tasks when queue is empty for 15 minutes
-- **CPU scaling**: Maintains capacity between min and max while messages exist (never scales to 0)
-- **Queue scaling**: Only queue-based scaling can reduce to 0 tasks
-- **Auto-scaling**: Min 0 tasks, max 10 tasks (dev: 3, beta: 5, prod: 10)
-- **Batch processing**: Processes up to 10 messages per poll
-
-## Performance Targets
-
-- **Throughput**: 10,000 messages/day (~7 messages/minute average)
-- **Latency**: 99% of messages processed within 15 minutes
-- **Availability**: Auto-recovery from failures via ECS task restarts
-- **Cost**: ~$36/month for template workload (NAT gateway dominates at ~$33/month)
+- **Horizontal scaling**: Auto-scales based on queue backlog per task
+- **Scale to zero**: Scale down to 0 tasks when queue is empty for 10 minutes
 
 ## Documentation
 
-Comprehensive steering documents in `.kiro/`:
+Steering documents in `.kiro/`:
 
 - **PROJECT_OVERVIEW.md**: Architecture, requirements, and design decisions
 - **INFRASTRUCTURE.md**: CDK implementation details and AWS resource configuration
@@ -238,7 +220,6 @@ For 10,000 messages/day workload:
 
 - IAM roles for ECS tasks (no hardcoded credentials)
 - Least-privilege IAM policies
-- ECR image scanning enabled
 - CloudWatch Logs encryption
 - SQS encryption at rest (AWS managed keys)
 
