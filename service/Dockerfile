@@ -29,7 +29,7 @@ RUN ./gradlew build --no-daemon
 # Runtime image
 FROM amazoncorretto:25-alpine-jdk
 WORKDIR /app
-COPY --from=build /app/build/libs/*.jar app.jar
+COPY --from=build /app/build/libs/queue-processing-service-all.jar app.jar
 
 # Run as non-root user
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup -h /home/appuser

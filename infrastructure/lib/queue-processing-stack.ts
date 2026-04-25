@@ -2,6 +2,7 @@ import { CfnOutput, Duration, RemovalPolicy, Stack, StackProps } from 'aws-cdk-l
 import { SubnetType, Vpc } from 'aws-cdk-lib/aws-ec2';
 import { Repository } from 'aws-cdk-lib/aws-ecr';
 import { Cluster, ContainerImage, CpuArchitecture, FargateService, FargateTaskDefinition, LogDrivers, OperatingSystemFamily } from 'aws-cdk-lib/aws-ecs';
+import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { Queue, QueueEncryption } from 'aws-cdk-lib/aws-sqs';
 import { Construct } from 'constructs';
@@ -15,6 +16,13 @@ export class QueueProcessingServiceStack extends Stack {
     super(scope, id, props);
 
     const { vpc } = props;
+
+    // ECR repository is created by deploy.sh before this stack is deployed.
+    // Referencing by name avoids the chicken-and-egg problem of CloudFormation
+    // waiting for ECS to stabilise before it can mark the stack CREATE_COMPLETE.
+    const repository = Repository.fromRepositoryName(
+      this, 'Repository', 'templates/queue-processing-service',
+    );
 
     // --- SQS ---
 
@@ -35,14 +43,6 @@ export class QueueProcessingServiceStack extends Stack {
       visibilityTimeout: Duration.seconds(300),
     });
 
-    // --- ECR ---
-
-    const repository = new Repository(this, 'Repository', {
-      emptyOnDelete: true,
-      removalPolicy: RemovalPolicy.DESTROY,
-      repositoryName: 'templates/queue-processing-service',
-    });
-
     // --- ECS ---
 
     const cluster = new Cluster(this, 'Cluster', { vpc });
@@ -60,6 +60,16 @@ export class QueueProcessingServiceStack extends Stack {
     // Grant the task role the three SQS actions the service needs:
     // ReceiveMessage, ChangeMessageVisibility, DeleteMessage (plus GetQueueUrl)
     queue.grantConsumeMessages(taskDefinition.taskRole);
+
+    // Grant the task role permission to publish custom metrics.
+    // Scoped to the service namespace to follow least-privilege.
+    taskDefinition.taskRole.addToPrincipalPolicy(new PolicyStatement({
+      actions: ['cloudwatch:PutMetricData'],
+      resources: ['*'],
+      conditions: {
+        StringEquals: { 'cloudwatch:namespace': 'QueueProcessingService' },
+      },
+    }));
 
     const logGroup = new LogGroup(this, 'LogGroup', {
       retention: RetentionDays.ONE_MONTH,

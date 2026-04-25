@@ -36,6 +36,47 @@ exports[`VpcStack matches snapshot 1`] = `
       },
       "Type": "AWS::EC2::InternetGateway",
     },
+    "VpcS3Endpoint4A3DE4B5": {
+      "Properties": {
+        "RouteTableIds": [
+          {
+            "Ref": "VpcprivateSubnet1RouteTable1979EACB",
+          },
+          {
+            "Ref": "VpcprivateSubnet2RouteTable4D0FFC8C",
+          },
+          {
+            "Ref": "VpcpublicSubnet1RouteTable15C15F8E",
+          },
+          {
+            "Ref": "VpcpublicSubnet2RouteTableC5A6DF77",
+          },
+        ],
+        "ServiceName": {
+          "Fn::Join": [
+            "",
+            [
+              "com.amazonaws.",
+              {
+                "Ref": "AWS::Region",
+              },
+              ".s3",
+            ],
+          ],
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "TestVpcStack/Vpc",
+          },
+        ],
+        "VpcEndpointType": "Gateway",
+        "VpcId": {
+          "Ref": "Vpc8378EB38",
+        },
+      },
+      "Type": "AWS::EC2::VPCEndpoint",
+    },
     "VpcVPCGWBF912B6E": {
       "Properties": {
         "InternetGatewayId": {

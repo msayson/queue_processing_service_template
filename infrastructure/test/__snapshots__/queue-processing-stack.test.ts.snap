@@ -19,46 +19,17 @@ exports[`QueueProcessingServiceStack matches snapshot 1`] = `
           "",
           [
             {
-              "Fn::Select": [
-                4,
-                {
-                  "Fn::Split": [
-                    ":",
-                    {
-                      "Fn::GetAtt": [
-                        "Repository22E53BBD",
-                        "Arn",
-                      ],
-                    },
-                  ],
-                },
-              ],
+              "Ref": "AWS::AccountId",
             },
             ".dkr.ecr.",
             {
-              "Fn::Select": [
-                3,
-                {
-                  "Fn::Split": [
-                    ":",
-                    {
-                      "Fn::GetAtt": [
-                        "Repository22E53BBD",
-                        "Arn",
-                      ],
-                    },
-                  ],
-                },
-              ],
+              "Ref": "AWS::Region",
             },
             ".",
             {
               "Ref": "AWS::URLSuffix",
             },
-            "/",
-            {
-              "Ref": "Repository22E53BBD",
-            },
+            "/templates/queue-processing-service",
           ],
         ],
       },
@@ -176,15 +147,6 @@ exports[`QueueProcessingServiceStack matches snapshot 1`] = `
       "Type": "AWS::Logs::LogGroup",
       "UpdateReplacePolicy": "Delete",
     },
-    "Repository22E53BBD": {
-      "DeletionPolicy": "Delete",
-      "Properties": {
-        "EmptyOnDelete": true,
-        "RepositoryName": "templates/queue-processing-service",
-      },
-      "Type": "AWS::ECR::Repository",
-      "UpdateReplacePolicy": "Delete",
-    },
     "ServiceD69D759B": {
       "DependsOn": [
         "TaskDefinitionTaskRoleDefaultPolicy282E8624",
@@ -277,47 +239,17 @@ exports[`QueueProcessingServiceStack matches snapshot 1`] = `
                 "",
                 [
                   {
-                    "Fn::Select": [
-                      4,
-                      {
-                        "Fn::Split": [
-                          ":",
-                          {
-                            "Fn::GetAtt": [
-                              "Repository22E53BBD",
-                              "Arn",
-                            ],
-                          },
-                        ],
-                      },
-                    ],
+                    "Ref": "AWS::AccountId",
                   },
                   ".dkr.ecr.",
                   {
-                    "Fn::Select": [
-                      3,
-                      {
-                        "Fn::Split": [
-                          ":",
-                          {
-                            "Fn::GetAtt": [
-                              "Repository22E53BBD",
-                              "Arn",
-                            ],
-                          },
-                        ],
-                      },
-                    ],
+                    "Ref": "AWS::Region",
                   },
                   ".",
                   {
                     "Ref": "AWS::URLSuffix",
                   },
-                  "/",
-                  {
-                    "Ref": "Repository22E53BBD",
-                  },
-                  ":latest",
+                  "/templates/queue-processing-service:latest",
                 ],
               ],
             },
@@ -391,9 +323,23 @@ exports[`QueueProcessingServiceStack matches snapshot 1`] = `
               ],
               "Effect": "Allow",
               "Resource": {
-                "Fn::GetAtt": [
-                  "Repository22E53BBD",
-                  "Arn",
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:",
+                    {
+                      "Ref": "AWS::Partition",
+                    },
+                    ":ecr:",
+                    {
+                      "Ref": "AWS::Region",
+                    },
+                    ":",
+                    {
+                      "Ref": "AWS::AccountId",
+                    },
+                    ":repository/templates/queue-processing-service",
+                  ],
                 ],
               },
             },
@@ -446,6 +392,16 @@ exports[`QueueProcessingServiceStack matches snapshot 1`] = `
                   "Arn",
                 ],
               },
+            },
+            {
+              "Action": "cloudwatch:PutMetricData",
+              "Condition": {
+                "StringEquals": {
+                  "cloudwatch:namespace": "QueueProcessingService",
+                },
+              },
+              "Effect": "Allow",
+              "Resource": "*",
             },
           ],
           "Version": "2012-10-17",

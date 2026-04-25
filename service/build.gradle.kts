@@ -1,7 +1,7 @@
 plugins {
     kotlin("jvm") version "2.3.20"
-    application
     jacoco
+    id("com.gradleup.shadow") version "8.3.6"
 }
 
 repositories {
@@ -29,7 +29,31 @@ dependencies {
     testImplementation("org.testcontainers:testcontainers-junit-jupiter:2.0.3")
 }
 
-application {
+// The `application` plugin is intentionally omitted: when it is present alongside
+// com.gradleup.shadow, Shadow's ShadowApplicationPlugin creates a startShadowScripts
+// task that maps the legacy mainClassName property, which no longer exists in
+// Gradle 9's JavaApplication extension, causing a build-time failure.
+// ./gradlew run is provided by the JavaExec task below instead.
+
+tasks.shadowJar {
+    manifest {
+        attributes["Main-Class"] = "com.template.queue.MainKt"
+    }
+    // Merge META-INF/services files so AWS SDK service discovery works correctly
+    // when all dependency JARs are combined into a single fat JAR.
+    mergeServiceFiles()
+}
+
+// Without the application plugin, Shadow does not automatically attach shadowJar
+// to assemble, so ./gradlew build would not produce the fat JAR. Wire it explicitly.
+tasks.assemble {
+    dependsOn(tasks.shadowJar)
+}
+
+tasks.register<JavaExec>("run") {
+    group = "application"
+    description = "Runs the service locally"
+    classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("com.template.queue.MainKt")
 }
 

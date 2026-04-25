@@ -6,8 +6,8 @@ import { VpcStack } from '../lib/vpc-stack';
 const app = new App();
 
 const env = {
-  account: process.env.CDK_DEFAULT_ACCOUNT,
-  region: process.env.CDK_DEFAULT_REGION,
+  account: process.env.QUEUE_PROCESSING_ACCOUNT,
+  region: process.env.QUEUE_PROCESSING_REGION,
 };
 
 const { vpc } = new VpcStack(app, 'VpcStack', { env });

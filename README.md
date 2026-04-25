@@ -54,71 +54,46 @@ A production-ready template for building AWS-hosted queue processing services in
 
 ### Prerequisites
 
-- AWS Account with appropriate permissions
-- AWS CLI v2+ configured
-- Node.js 24+ (for CDK)
-- Docker (for building container images)
-- JDK 25+
-- Gradle 9+
+- **AWS account** with permissions to create VPC, ECS, SQS, ECR, IAM, and CloudWatch resources
+- **AWS CLI v2+** configured with credentials (`aws configure`)
+- **Node.js 24+** (for CDK)
+- **Docker Desktop** — see platform notes below
 
-### 1. Bootstrap CDK (first time only)
+#### Docker Desktop setup (Windows)
+
+1. Install [Docker Desktop for Windows](https://docs.docker.com/desktop/setup/install/windows-install/)
+2. In Docker Desktop → Settings → Resources → WSL Integration, enable integration for your WSL2 distro
+3. Ensure the Linux engine is selected (not Windows containers)
+4. Confirm Docker is reachable from your terminal before running the deploy script:
+   ```bash
+   docker info
+   ```
+
+### Deploy
+
+`scripts/deploy.sh` handles the full deployment in the correct order: VPC stack → ECR repository → Docker build and push → service stack → ECS force-deploy.
 
 ```bash
-cdk bootstrap aws://ACCOUNT-ID/REGION
+./scripts/deploy.sh --awsAccountId 123456789012 --awsRegion us-east-1
 ```
 
-### 2. Deploy Infrastructure
+What the script does:
+1. Installs CDK dependencies and bootstraps the CDK environment
+2. Deploys `VpcStack` (VPC, NAT gateway)
+3. Creates the ECR repository if it doesn't exist
+4. Builds the Docker image (`linux/arm64`) and pushes it to ECR
+5. Deploys `QueueProcessingServiceStack` (SQS, ECS, IAM, CloudWatch)
+6. Forces a new ECS deployment to pull the latest image
+
+### Verify
 
 ```bash
-cd infrastructure
-npm install
-
-# Set environment variables
-export AWS_ACCOUNT_ID=123456789012
-export AWS_REGION=us-east-1
-export ENVIRONMENT=dev
-export DEVELOPER_NAME=yourname
-
-cdk deploy
-```
-
-This creates:
-- VPC configuration (private subnets, NAT Gateway or VPC endpoints)
-- SQS queue and dead letter queue
-- ECR repository
-- ECS cluster, task definition, and service
-- Auto-scaling policies (CPU-based and queue-based, scale to 0)
-- IAM roles and policies
-- CloudWatch log group
-
-### 3. Build and Push Service
-
-```bash
-cd service
-docker build -t queue-processing-service:latest .
-
-# Authenticate to ECR
-aws ecr get-login-password --region REGION | \
-  docker login --username AWS --password-stdin ACCOUNT-ID.dkr.ecr.REGION.amazonaws.com
-
-# Tag and push
-docker tag queue-processing-service:latest \
-  ACCOUNT-ID.dkr.ecr.REGION.amazonaws.com/queue-processing-service:latest
-docker push ACCOUNT-ID.dkr.ecr.REGION.amazonaws.com/queue-processing-service:latest
-```
-
-### 4. Verify Deployment
-
-```bash
-# Check ECS service status
-aws ecs describe-services --cluster QueueProcessingCluster --services QueueProcessingService
-
 # View logs
 aws logs tail /ecs/queue-processing-service --follow
 
-# Send test message
+# Send a test message (replace QUEUE_URL with the QueueUrl stack output)
 aws sqs send-message \
-  --queue-url $(aws sqs get-queue-url --queue-name QueueProcessingQueue --query 'QueueUrl' --output text) \
+  --queue-url QUEUE_URL \
   --message-body '{"eventType":"TEST","data":"Hello World"}'
 ```
 
@@ -129,8 +104,9 @@ queue_processing_service_template/
 ├── .kiro/                          # Kiro steering documents
 │   ├── PROJECT_OVERVIEW.md         # Architecture and requirements
 │   ├── INFRASTRUCTURE.md           # CDK implementation guide
-│   ├── SERVICE_IMPLEMENTATION.md   # Kotlin service guide
-│   └── DEPLOYMENT.md               # Build and deployment guide
+│   ├── DEPLOYMENT.md               # Build and deployment guide
+│   └── steering/
+│       └── service-implementation.md  # Kotlin service guide (service/** only)
 ├── infrastructure/                 # AWS CDK code (TypeScript)
 │   ├── bin/                        # CDK app entry point
 │   ├── lib/                        # Stack definitions
@@ -226,8 +202,8 @@ Comprehensive steering documents in `.kiro/`:
 
 - **PROJECT_OVERVIEW.md**: Architecture, requirements, and design decisions
 - **INFRASTRUCTURE.md**: CDK implementation details and AWS resource configuration
-- **SERVICE_IMPLEMENTATION.md**: Kotlin service architecture and extension points
 - **DEPLOYMENT.md**: Build, deployment, operations, and troubleshooting
+- **steering/service-implementation.md**: Kotlin service internals (loaded only for `service/**` queries)
 
 ## Technology Stack
 
@@ -266,14 +242,3 @@ For 10,000 messages/day workload:
 ## License
 
 MIT License - see LICENSE file for details
-
-## Support
-
-This is a template project. For issues or questions:
-1. Review steering documents in `.kiro/`
-2. Check AWS documentation for service-specific issues
-3. Consult AWS SDK for Kotlin documentation
-
-## Contributing
-
-Contributions welcome! This template should remain minimal and focused on core queue processing patterns. Extensions and domain-specific logic belong in projects that use this template.
