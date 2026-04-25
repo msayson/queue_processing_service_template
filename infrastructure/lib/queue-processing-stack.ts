@@ -1,7 +1,9 @@
 import { CfnOutput, Duration, RemovalPolicy, Stack, StackProps } from 'aws-cdk-lib';
+import { AdjustmentType, CfnScalingPolicy, ScalableTarget, ServiceNamespace } from 'aws-cdk-lib/aws-applicationautoscaling';
+import { MathExpression } from 'aws-cdk-lib/aws-cloudwatch';
 import { SubnetType, Vpc } from 'aws-cdk-lib/aws-ec2';
 import { Repository } from 'aws-cdk-lib/aws-ecr';
-import { Cluster, ContainerImage, CpuArchitecture, FargateService, FargateTaskDefinition, LogDrivers, OperatingSystemFamily } from 'aws-cdk-lib/aws-ecs';
+import { Cluster, ContainerImage, ContainerInsights, CpuArchitecture, FargateService, FargateTaskDefinition, LogDrivers, OperatingSystemFamily } from 'aws-cdk-lib/aws-ecs';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { Queue, QueueEncryption } from 'aws-cdk-lib/aws-sqs';
@@ -12,6 +14,9 @@ export interface QueueProcessingServiceStackProps extends StackProps {
 }
 
 export class QueueProcessingServiceStack extends Stack {
+  private static readonly MAX_TASKS = 10;
+  private static readonly BACKLOG_PER_TASK = 100;
+
   constructor(scope: Construct, id: string, props: QueueProcessingServiceStackProps) {
     super(scope, id, props);
 
@@ -45,7 +50,9 @@ export class QueueProcessingServiceStack extends Stack {
 
     // --- ECS ---
 
-    const cluster = new Cluster(this, 'Cluster', { vpc });
+    // Container Insights is required for the RunningTaskCount metric used by
+    // backlog-per-task target tracking scaling.
+    const cluster = new Cluster(this, 'Cluster', { vpc, containerInsightsV2: ContainerInsights.ENABLED });
 
     const taskDefinition = new FargateTaskDefinition(this, 'TaskDefinition', {
       cpu: 256,
@@ -86,13 +93,125 @@ export class QueueProcessingServiceStack extends Stack {
         streamPrefix: 'queue-processing-service',
         logGroup,
       }),
+      // Give the service up to 120 s (Fargate maximum) to finish processing its
+      // current message after ECS sends SIGTERM on scale-in before SIGKILL fires.
+      stopTimeout: Duration.seconds(120),
     });
 
-    new FargateService(this, 'Service', {
+    const service = new FargateService(this, 'Service', {
       cluster,
       taskDefinition,
-      desiredCount: 1,
+      desiredCount: 0,
       vpcSubnets: { subnetType: SubnetType.PRIVATE_WITH_EGRESS },
+    });
+
+    // --- Auto-scaling ---
+    //
+    // Two policies work together:
+    //   ScaleInOnEmptyQueue  — shuts the service back to 0 after 15 idle minutes
+    //   BacklogPerTask       — target tracking that wakes the service from 0 and
+    //                          sizes the fleet to maintain BACKLOG_PER_TASK messages
+    //                          per running task
+
+    // Use ScalableTarget directly (rather than service.autoScaleTaskCount) so
+    // that scaleToTrackMetric accepts a MathExpression for backlog-per-task.
+    // The ECS wrapper's scaleToTrackCustomMetric only allows direct Metric objects.
+    const scaling = new ScalableTarget(this, 'TaskCountTarget', {
+      serviceNamespace: ServiceNamespace.ECS,
+      scalableDimension: 'ecs:service:DesiredCount',
+      resourceId: `service/${cluster.clusterName}/${service.serviceName}`,
+      minCapacity: 0,
+      maxCapacity: QueueProcessingServiceStack.MAX_TASKS,
+    });
+
+    // Idle shutdown: scale to 0 after 15 consecutive minutes with no messages
+    // visible OR in-flight. Using only ApproximateNumberOfMessagesVisible would
+    // fire while tasks are mid-processing (in-flight messages are invisible).
+    const totalMessages = new MathExpression({
+      expression: 'visible + notVisible',
+      usingMetrics: {
+        visible:    queue.metricApproximateNumberOfMessagesVisible({ period: Duration.minutes(1) }),
+        notVisible: queue.metricApproximateNumberOfMessagesNotVisible({ period: Duration.minutes(1) }),
+      },
+      period: Duration.minutes(1),
+    });
+
+    scaling.scaleOnMetric('ScaleInOnEmptyQueue', {
+      metric: totalMessages,
+      scalingSteps: [
+        { upper: 1, change: -1000 }, // 0 total messages → floor to 0 (capped at minCapacity)
+        { lower: 1, change:     0 }, // 1+ total messages → no change
+      ],
+      adjustmentType: AdjustmentType.CHANGE_IN_CAPACITY,
+      cooldown: Duration.minutes(1),
+      evaluationPeriods: 15,
+      datapointsToAlarm: 15,
+    });
+
+    // Backlog-per-task target tracking: wake the service from 0 and maintain
+    // BACKLOG_PER_TASK messages per running task.
+    //
+    // The expression handles three cases:
+    //   tasks = 0, messages = 0  →  0       (no action)
+    //   tasks = 0, messages > 0  →  1       (> target → scale from 0 to 1)
+    //   tasks > 0                →  messages / tasks  (steady-state sizing)
+    //
+    // Returning BACKLOG_PER_TASK + 1 (rather than the raw message count) when
+    // tasks = 0 guarantees a scale-out signal for any queue depth, including
+    // fewer than BACKLOG_PER_TASK messages. After the first task starts,
+    // target tracking resumes normal ratio-based sizing.
+    //
+    // CDK's L2 target tracking rejects MathExpression; CfnScalingPolicy (L1)
+    // is used to bypass that validation while the AWS API supports it natively.
+    // Container Insights (enabled on the cluster above) provides RunningTaskCount.
+    new CfnScalingPolicy(this, 'BacklogPerTaskPolicy', {
+      policyName: 'BacklogPerTask',
+      policyType: 'TargetTrackingScaling',
+      scalingTargetId: scaling.scalableTargetRef.resourceId,
+      targetTrackingScalingPolicyConfiguration: {
+        targetValue: QueueProcessingServiceStack.BACKLOG_PER_TASK,
+        // Longer scale-in cooldown avoids churning tasks during brief queue lulls;
+        // the idle shutdown step policy handles the final scale-to-zero.
+        scaleInCooldown: Duration.minutes(10).toSeconds(),
+        // Short scale-out cooldown so new tasks start quickly when backlog grows.
+        scaleOutCooldown: Duration.minutes(1).toSeconds(),
+        customizedMetricSpecification: {
+          metrics: [
+            {
+              id: 'messages',
+              metricStat: {
+                metric: {
+                  namespace: 'AWS/SQS',
+                  metricName: 'ApproximateNumberOfMessagesVisible',
+                  dimensions: [{ name: 'QueueName', value: queue.queueName }],
+                },
+                stat: 'Average',
+              },
+              returnData: false,
+            },
+            {
+              id: 'tasks',
+              metricStat: {
+                metric: {
+                  namespace: 'ECS/ContainerInsights',
+                  metricName: 'RunningTaskCount',
+                  dimensions: [
+                    { name: 'ClusterName', value: cluster.clusterName },
+                    { name: 'ServiceName', value: service.serviceName },
+                  ],
+                },
+                stat: 'Average',
+              },
+              returnData: false,
+            },
+            {
+              id: 'backlogPerTask',
+              expression: `IF(tasks < 1, IF(messages > 0, ${QueueProcessingServiceStack.BACKLOG_PER_TASK + 1}, 0), messages / tasks)`,
+              returnData: true,
+            },
+          ],
+        },
+      },
     });
 
     // --- Outputs ---

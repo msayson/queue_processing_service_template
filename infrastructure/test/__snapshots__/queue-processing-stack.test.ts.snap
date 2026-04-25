@@ -43,7 +43,89 @@ exports[`QueueProcessingServiceStack matches snapshot 1`] = `
     },
   },
   "Resources": {
+    "BacklogPerTaskPolicy": {
+      "Properties": {
+        "PolicyName": "BacklogPerTask",
+        "PolicyType": "TargetTrackingScaling",
+        "ScalingTargetId": {
+          "Ref": "TaskCountTarget3392C690",
+        },
+        "TargetTrackingScalingPolicyConfiguration": {
+          "CustomizedMetricSpecification": {
+            "Metrics": [
+              {
+                "Id": "messages",
+                "MetricStat": {
+                  "Metric": {
+                    "Dimensions": [
+                      {
+                        "Name": "QueueName",
+                        "Value": {
+                          "Fn::GetAtt": [
+                            "InputQueueFD90041C",
+                            "QueueName",
+                          ],
+                        },
+                      },
+                    ],
+                    "MetricName": "ApproximateNumberOfMessagesVisible",
+                    "Namespace": "AWS/SQS",
+                  },
+                  "Stat": "Average",
+                },
+                "ReturnData": false,
+              },
+              {
+                "Id": "tasks",
+                "MetricStat": {
+                  "Metric": {
+                    "Dimensions": [
+                      {
+                        "Name": "ClusterName",
+                        "Value": {
+                          "Ref": "ClusterEB0386A7",
+                        },
+                      },
+                      {
+                        "Name": "ServiceName",
+                        "Value": {
+                          "Fn::GetAtt": [
+                            "ServiceD69D759B",
+                            "Name",
+                          ],
+                        },
+                      },
+                    ],
+                    "MetricName": "RunningTaskCount",
+                    "Namespace": "ECS/ContainerInsights",
+                  },
+                  "Stat": "Average",
+                },
+                "ReturnData": false,
+              },
+              {
+                "Expression": "IF(tasks < 1, IF(messages > 0, 101, 0), messages / tasks)",
+                "Id": "backlogPerTask",
+                "ReturnData": true,
+              },
+            ],
+          },
+          "ScaleInCooldown": 600,
+          "ScaleOutCooldown": 60,
+          "TargetValue": 100,
+        },
+      },
+      "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
+    },
     "ClusterEB0386A7": {
+      "Properties": {
+        "ClusterSettings": [
+          {
+            "Name": "containerInsights",
+            "Value": "enabled",
+          },
+        ],
+      },
       "Type": "AWS::ECS::Cluster",
     },
     "DeadLetterQueue9F481546": {
@@ -165,7 +247,7 @@ exports[`QueueProcessingServiceStack matches snapshot 1`] = `
           "MaximumPercent": 200,
           "MinimumHealthyPercent": 50,
         },
-        "DesiredCount": 1,
+        "DesiredCount": 0,
         "EnableECSManagedTags": false,
         "LaunchType": "FARGATE",
         "NetworkConfiguration": {
@@ -214,6 +296,144 @@ exports[`QueueProcessingServiceStack matches snapshot 1`] = `
         },
       },
       "Type": "AWS::EC2::SecurityGroup",
+    },
+    "TaskCountTarget3392C690": {
+      "Properties": {
+        "MaxCapacity": 10,
+        "MinCapacity": 0,
+        "ResourceId": {
+          "Fn::Join": [
+            "",
+            [
+              "service/",
+              {
+                "Ref": "ClusterEB0386A7",
+              },
+              "/",
+              {
+                "Fn::GetAtt": [
+                  "ServiceD69D759B",
+                  "Name",
+                ],
+              },
+            ],
+          ],
+        },
+        "RoleARN": {
+          "Fn::GetAtt": [
+            "TaskCountTargetRole281F5A23",
+            "Arn",
+          ],
+        },
+        "ScalableDimension": "ecs:service:DesiredCount",
+        "ServiceNamespace": "ecs",
+      },
+      "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+    },
+    "TaskCountTargetRole281F5A23": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "application-autoscaling.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "TaskCountTargetScaleInOnEmptyQueueLowerAlarm5343666A": {
+      "Properties": {
+        "AlarmActions": [
+          {
+            "Ref": "TaskCountTargetScaleInOnEmptyQueueLowerPolicyCAC04798",
+          },
+        ],
+        "AlarmDescription": "Lower threshold scaling alarm",
+        "ComparisonOperator": "LessThanOrEqualToThreshold",
+        "DatapointsToAlarm": 15,
+        "EvaluationPeriods": 15,
+        "Metrics": [
+          {
+            "Expression": "visible + notVisible",
+            "Id": "expr_1",
+            "ReturnData": true,
+          },
+          {
+            "Id": "visible",
+            "MetricStat": {
+              "Metric": {
+                "Dimensions": [
+                  {
+                    "Name": "QueueName",
+                    "Value": {
+                      "Fn::GetAtt": [
+                        "InputQueueFD90041C",
+                        "QueueName",
+                      ],
+                    },
+                  },
+                ],
+                "MetricName": "ApproximateNumberOfMessagesVisible",
+                "Namespace": "AWS/SQS",
+              },
+              "Period": 60,
+              "Stat": "Maximum",
+            },
+            "ReturnData": false,
+          },
+          {
+            "Id": "notVisible",
+            "MetricStat": {
+              "Metric": {
+                "Dimensions": [
+                  {
+                    "Name": "QueueName",
+                    "Value": {
+                      "Fn::GetAtt": [
+                        "InputQueueFD90041C",
+                        "QueueName",
+                      ],
+                    },
+                  },
+                ],
+                "MetricName": "ApproximateNumberOfMessagesNotVisible",
+                "Namespace": "AWS/SQS",
+              },
+              "Period": 60,
+              "Stat": "Maximum",
+            },
+            "ReturnData": false,
+          },
+        ],
+        "Threshold": 1,
+      },
+      "Type": "AWS::CloudWatch::Alarm",
+    },
+    "TaskCountTargetScaleInOnEmptyQueueLowerPolicyCAC04798": {
+      "Properties": {
+        "PolicyName": "TestStackTaskCountTargetScaleInOnEmptyQueueLowerPolicy1C6BD212",
+        "PolicyType": "StepScaling",
+        "ScalingTargetId": {
+          "Ref": "TaskCountTarget3392C690",
+        },
+        "StepScalingPolicyConfiguration": {
+          "AdjustmentType": "ChangeInCapacity",
+          "Cooldown": 60,
+          "StepAdjustments": [
+            {
+              "MetricIntervalUpperBound": 0,
+              "ScalingAdjustment": -1000,
+            },
+          ],
+        },
+      },
+      "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
     },
     "TaskDefinitionB36D86D9": {
       "Properties": {
@@ -266,6 +486,7 @@ exports[`QueueProcessingServiceStack matches snapshot 1`] = `
               },
             },
             "Name": "Service",
+            "StopTimeout": 120,
           },
         ],
         "Cpu": "256",
