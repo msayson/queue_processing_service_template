@@ -195,7 +195,7 @@ The template is designed for idempotent processing. Extending projects should im
 - **Throughput**: 10,000 messages/day (~7 messages/minute average)
 - **Latency**: 99% of messages processed within 15 minutes
 - **Availability**: Auto-recovery from failures via ECS task restarts
-- **Cost**: ~$12-20/month for template workload
+- **Cost**: ~$36/month for template workload (NAT gateway dominates at ~$33/month)
 
 ## Documentation
 
@@ -220,17 +220,17 @@ Comprehensive steering documents in `.kiro/`:
 ## Cost Estimate
 
 For 10,000 messages/day workload:
-- ECS Fargate (0.5 vCPU, 2 GB):
-  - 24/7: $20-30/month
-  - With scale-to-zero (avg 2 hours/day): $2-3/month
+- ECS Fargate (0.25 vCPU, 0.5 GB):
+  - 24/7: ~$9/month
+  - With scale-to-zero (avg 2 hours/day): ~$1/month
 - SQS requests: < $1/month (first 1M free)
-- CloudWatch Logs (7-day retention): $1-2/month
+- CloudWatch Logs (30-day retention): $1-2/month
+- Container Insights: < $1/month
 - ECR storage: $1/month
-- NAT Gateway: ~$32/month (or use VPC endpoints)
-- VPC Endpoints (optional): ~$35/month (5 endpoints)
+- NAT Gateway: ~$32/month
 - **Total**:
-  - Dev with scale-to-zero + NAT: ~$36-38/month
-  - Prod 24/7 + VPC endpoints: ~$58-70/month
+  - Dev with scale-to-zero + NAT: ~$36/month
+  - Prod 24/7 + NAT: ~$45/month
 
 ## Security
 
