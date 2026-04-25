@@ -108,6 +108,7 @@ queue_processing_service_template/
 │   ├── DEPLOYMENT.md               # Build and deployment guide
 │   └── steering/
 │       └── service-implementation.md  # Kotlin service guide (service/** only)
+├── docs/                           # Design documents and diagrams
 ├── infrastructure/                 # AWS CDK code (TypeScript)
 │   ├── bin/                        # CDK app entry point
 │   ├── lib/                        # Stack definitions
