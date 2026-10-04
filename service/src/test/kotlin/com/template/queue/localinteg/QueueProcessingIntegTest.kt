@@ -46,7 +46,7 @@ class QueueProcessingIntegTest {
 
     @AfterAll
     fun tearDown() {
-        runBlocking { metricsPublisher.flush() }
+        runBlocking { metricsPublisher.shutdownAndFlush() }
         sqsLocalStack.stop()
     }
 

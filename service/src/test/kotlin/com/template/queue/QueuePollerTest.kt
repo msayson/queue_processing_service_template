@@ -91,7 +91,7 @@ class QueuePollerTest {
         )
 
         poller.pollAndProcess()
-        metricsPublisher.flush()
+        metricsPublisher.shutdownAndFlush()
 
         val captor = argumentCaptor<DeleteMessageRequest>()
         verify(mockSqsClient).deleteMessage(captor.capture())
@@ -135,7 +135,7 @@ class QueuePollerTest {
         )
 
         poller.pollAndProcess()
-        metricsPublisher.flush()
+        metricsPublisher.shutdownAndFlush()
 
         verify(mockSqsClient, never()).deleteMessage(any())
         val metricRequests = argumentCaptor<PutMetricDataRequest>()
@@ -208,6 +208,6 @@ class QueuePollerTest {
         )
 
         assertFailsWith<CancellationException> { poller.pollAndProcess() }
-        metricsPublisher.flush()
+        metricsPublisher.shutdownAndFlush()
     }
 }

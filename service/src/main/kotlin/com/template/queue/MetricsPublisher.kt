@@ -55,7 +55,7 @@ class MetricsPublisher(
         try {
             val result = call()
             val timestamp = Instant.now()
-            offer(
+            bufferMetrics(
                 metricDatum(FAILURE_METRIC_NAME, 0.0, StandardUnit.Count, timestamp),
                 metricDatum(
                     LATENCY_METRIC_NAME,
@@ -70,7 +70,7 @@ class MetricsPublisher(
             throw e
         } catch (e: Exception) {
             if (!e.isBadInputError()) {
-                offer(metricDatum(FAILURE_METRIC_NAME, 1.0, StandardUnit.Count, Instant.now()))
+                bufferMetrics(metricDatum(FAILURE_METRIC_NAME, 1.0, StandardUnit.Count, Instant.now()))
             }
             throw e
         }
@@ -80,7 +80,7 @@ class MetricsPublisher(
      * Stops scheduled draining and sends the remaining buffered datums, giving up
      * after [flushTimeoutMillis] so the shutdown hook can still flush logs.
      */
-    suspend fun flush() {
+    suspend fun shutdownAndFlush() {
         acceptingMetrics.set(false)
         scheduledDrain.cancel(false)
         scheduler.shutdown()
@@ -114,7 +114,7 @@ class MetricsPublisher(
                     metricData = batch
                 })
             } catch (e: CancellationException) {
-                // Let flush()'s timeout stop the drain instead of discarding every batch.
+                // Let shutdownAndFlush()'s timeout stop the drain instead of discarding every batch.
                 // The batch is already off the buffer, so count it as dropped.
                 droppedDatumCount.addAndGet(batch.size.toLong())
                 throw e
@@ -131,7 +131,7 @@ class MetricsPublisher(
         }
     }
 
-    private fun offer(vararg datums: MetricDatum) {
+    private fun bufferMetrics(vararg datums: MetricDatum) {
         datums.forEach { datum ->
             if (!acceptingMetrics.get() || !buffer.offer(datum)) {
                 droppedDatumCount.incrementAndGet()
