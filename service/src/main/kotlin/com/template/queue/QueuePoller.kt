@@ -66,20 +66,20 @@ class QueuePoller(
                 val receiptHandle = message.receiptHandle
 
                 try {
-                    processor.process(body, messageId)
+                    metricsPublisher.measureCall {
+                        processor.process(body, messageId)
+                    }
 
                     if (receiptHandle != null) {
                         sqsClient.deleteMessage(DeleteMessageRequest {
                             this.queueUrl = this@QueuePoller.queueUrl
                             this.receiptHandle = receiptHandle
                         })
-                        metricsPublisher.publishMetric("MessagesProcessedSuccess", 1.0)
                     }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     logger.error(e) { "Failed to process message: messageId=$messageId" }
-                    metricsPublisher.publishMetric("MessagesProcessedFailure", 1.0)
                 }
             }
         }.awaitAll()

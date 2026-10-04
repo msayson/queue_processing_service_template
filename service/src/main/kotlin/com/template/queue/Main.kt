@@ -63,11 +63,13 @@ private fun registerShutdownHook(
         workerManager.stop()
 
         // Flush remaining CloudWatch metrics buffered by the publisher.
-        runBlocking {
-            metricsPublisher.flush()
+        try {
+            runBlocking {
+                metricsPublisher.flush()
+            }
+        } finally {
+            // Shut down the log manager to flush buffered log events.
+            LogManager.shutdown()
         }
-
-        // Shut down the log manager to flush buffered log events.
-        LogManager.shutdown()
     })
 }

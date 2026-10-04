@@ -137,12 +137,12 @@ The template implementation provides a minimal, working example:
 2. **Receives messages** in batches (up to 10)
 3. **Processes each message**:
    - Logs message ID and body
-   - Emits CloudWatch metric `MessageReceived`
+   - Emits `Failure=0` and successful-call `Latency` observations
    - Simulates processing (placeholder for business logic)
 4. **On success**: Deletes message from queue
 5. **On failure**:
    - Logs error with full context
-   - Emits CloudWatch metric `MessagesProcessedFailure`
+   - Emits `Failure=1` (except bad-input HTTP 4xx such as `ValidationException`, which are omitted; throttling and access denied still count); cancellation emits nothing
    - Message remains in queue and retries after 5 minutes
    - After 5 failures, message moves to DLQ
 
@@ -171,11 +171,11 @@ To build your own queue processing service:
 - **Transient failures**: Automatic retry after SQS visibility timeout
 - **Permanent failures**: After 5 retries, messages move to DLQ
 - **Comprehensive logging**: All failures logged with full context
-- **Metrics**: Success and failure metrics for monitoring
+- **Metrics**: Per-call `Failure` (Count) and successful-call `Latency` (Milliseconds) observations; individual observations preserve percentile statistics
 
 ### Observability
 - **CloudWatch Logs**: Structured logging with message context
-- **Custom Metrics**: `MessagesReceived`, `MessagesProcessedSuccess`, `MessagesProcessedFailure`, `ProcessingDuration`
+- **Custom Metrics**: `Failure`, `Latency`
 - **ECS Metrics**: CPU, memory, task health
 - **SQS Metrics**: Queue depth, message age, DLQ count
 

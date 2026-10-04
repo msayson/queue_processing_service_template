@@ -118,7 +118,7 @@ export class QueueProcessingServiceStack extends Stack {
     // --- Auto-scaling ---
     //
     // Two policies work together:
-    //   ScaleInOnEmptyQueue  — shuts the service back to 0 after 15 idle minutes
+    //   ScaleInOnEmptyQueue  — shuts the service back to 0 after 10 idle minutes
     //   BacklogPerTask       — target tracking that wakes the service from 0 and
     //                          sizes the fleet to maintain BACKLOG_PER_TASK messages
     //                          per running task
@@ -134,7 +134,7 @@ export class QueueProcessingServiceStack extends Stack {
       maxCapacity: QueueProcessingServiceStack.MAX_TASKS,
     });
 
-    // Idle shutdown: scale to 0 after 15 consecutive minutes with no messages
+    // Idle shutdown: scale to 0 after 10 consecutive minutes with no messages
     // visible OR in-flight. Using only ApproximateNumberOfMessagesVisible would
     // fire while tasks are mid-processing (in-flight messages are invisible).
     const totalMessages = new MathExpression({

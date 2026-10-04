@@ -28,14 +28,15 @@ docker buildx build --platform linux/arm64 -t queue-processing-service:latest .
 
 ## Architecture
 
-**Message flow:** SQS → `QueuePoller` (long-polls in batches of up to 10) → `MessageProcessor` (interface) → on success: delete from queue; on failure: retain for retry via visibility timeout (5 min, up to 5 attempts) → Dead Letter Queue after exhaustion.
+**Message flow:** SQS → `WorkerManager` runs `NUM_WORKER_THREADS` parallel `QueuePoller` coroutines (each long-polls in batches of up to 10) → `MessageProcessor` (interface) → on success: delete from queue; on failure: retain for retry via visibility timeout (5 min, up to 5 attempts) → Dead Letter Queue after exhaustion.
 
 **Components** (`src/main/kotlin/com/template/queue/`):
-- `Main.kt` — entry point; initializes AWS SQS and CloudWatch clients, wires dependencies, registers graceful shutdown hook
+- `Main.kt` — entry point; initializes AWS SQS and CloudWatch clients, wires dependencies, registers shutdown hook (stops workers within grace period, then flushes metrics)
+- `WorkerManager.kt` — launches/stops the worker coroutines on `Dispatchers.IO`; waits up to `WORKER_SHUTDOWN_GRACE_PERIOD_SECONDS` for in-flight work on shutdown
 - `QueuePoller.kt` — long-polling loop (20s wait time), batch receive, delegates to `MessageProcessor`, handles deletion
-- `MessageProcessor.kt` — interface with a single `suspend fun process(body: String, messageId: String)` method; implement this to add business logic
+- `MessageProcessor.kt` — interface with a single `suspend fun process(messageBody: String, messageId: String)` method; implement this to add business logic
 - `TemplateMessageProcessor.kt` — placeholder implementation; **replace with actual processing logic**
-- `MetricsPublisher.kt` — publishes `MessagesProcessedSuccess` / `MessagesProcessedFailure` CloudWatch metrics
+- `MetricsPublisher.kt` — buffers and batches per-call `Failure` / `Latency` CloudWatch observations
 - `config/Configuration.kt` — reads all config from environment variables
 
 **Environment variables:**
@@ -46,6 +47,8 @@ docker buildx build --platform linux/arm64 -t queue-processing-service:latest .
 | `MAX_MESSAGES` | No | 10 | Batch size (1–10) |
 | `WAIT_TIME_SECONDS` | No | 20 | Long polling timeout |
 | `VISIBILITY_TIMEOUT` | No | 300 | Message lock duration (seconds) |
+| `NUM_WORKER_THREADS` | No | 1 | Parallel polling workers per process |
+| `WORKER_SHUTDOWN_GRACE_PERIOD_SECONDS` | No | 30 | Wait for in-flight workers on shutdown (seconds) |
 
 ## Testing
 

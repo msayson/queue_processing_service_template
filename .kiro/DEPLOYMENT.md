@@ -26,13 +26,13 @@ Tasks may legitimately be at 0 when the queue is empty. CPU scaling only operate
 **Logs**: `aws logs tail /ecs/queue-processing-service --follow`
 
 **Key metrics**:
-- `MessagesReceived`, `MessagesProcessedSuccess`, `MessagesProcessedFailure`, `ProcessingDuration` (custom, from service)
+- `Failure` and `Latency` (custom, per processor call; bad-input HTTP 4xx errors and cancellations are omitted)
 - `ApproximateNumberOfMessagesVisible` on main queue and DLQ
 - ECS CPU/memory utilization
 
 **Recommended alarms**:
 - DLQ `ApproximateNumberOfMessagesVisible` > 0
-- `MessagesProcessedFailure` > 10 in 5 minutes
+- `Failure` sum > 10 in 5 minutes
 - Main queue depth > 1000
 
 ## Troubleshooting

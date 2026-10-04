@@ -1,5 +1,7 @@
 package com.template.queue
 
+import aws.sdk.kotlin.services.cloudwatch.CloudWatchClient
+import aws.sdk.kotlin.services.cloudwatch.model.PutMetricDataRequest
 import aws.sdk.kotlin.services.sqs.SqsClient
 import aws.sdk.kotlin.services.sqs.model.DeleteMessageRequest
 import aws.sdk.kotlin.services.sqs.model.Message
@@ -65,7 +67,8 @@ class QueuePollerTest {
     @Test
     fun `processes message and deletes on success`() = runTest {
         val mockSqsClient = mock<SqsClient>()
-        val mockMetricsPublisher = mock<MetricsPublisher>()
+        val mockCloudWatchClient = mock<CloudWatchClient>()
+        val metricsPublisher = MetricsPublisher(mockCloudWatchClient)
         val processor = TestProcessor()
 
         whenever(mockSqsClient.receiveMessage(any<ReceiveMessageRequest>())).thenReturn(
@@ -84,10 +87,11 @@ class QueuePollerTest {
             sqsClient = mockSqsClient,
             queueUrl = TEST_QUEUE_URL,
             processor = processor,
-            metricsPublisher = mockMetricsPublisher
+            metricsPublisher = metricsPublisher
         )
 
         poller.pollAndProcess()
+        metricsPublisher.flush()
 
         val captor = argumentCaptor<DeleteMessageRequest>()
         verify(mockSqsClient).deleteMessage(captor.capture())
@@ -96,42 +100,19 @@ class QueuePollerTest {
         assertEquals(TEST_RECEIPT_HANDLE, captor.firstValue.receiptHandle)
         assertEquals(1, processor.processedMessages.size)
         assertEquals(TEST_MESSAGE_BODY to TEST_MESSAGE_ID, processor.processedMessages[0])
-    }
-
-    @Test
-    fun `emits success metric after processing`() = runTest {
-        val mockSqsClient = mock<SqsClient>()
-        val mockMetricsPublisher = mock<MetricsPublisher>()
-        val processor = TestProcessor()
-
-        whenever(mockSqsClient.receiveMessage(any<ReceiveMessageRequest>())).thenReturn(
-            ReceiveMessageResponse {
-                messages = listOf(
-                    Message {
-                        messageId = TEST_MESSAGE_ID
-                        body = TEST_MESSAGE_BODY
-                        receiptHandle = TEST_RECEIPT_HANDLE
-                    }
-                )
-            }
+        val metricRequests = argumentCaptor<PutMetricDataRequest>()
+        verify(mockCloudWatchClient).putMetricData(metricRequests.capture())
+        assertEquals(
+            listOf(MetricsPublisher.FAILURE_METRIC_NAME, MetricsPublisher.LATENCY_METRIC_NAME),
+            metricRequests.firstValue.metricData?.map { it.metricName }
         )
-
-        val poller = QueuePoller(
-            sqsClient = mockSqsClient,
-            queueUrl = TEST_QUEUE_URL,
-            processor = processor,
-            metricsPublisher = mockMetricsPublisher
-        )
-
-        poller.pollAndProcess()
-
-        verify(mockMetricsPublisher).publishMetric("MessagesProcessedSuccess", 1.0)
     }
 
     @Test
     fun `does not delete message on processing failure`() = runTest {
         val mockSqsClient = mock<SqsClient>()
-        val mockMetricsPublisher = mock<MetricsPublisher>()
+        val mockCloudWatchClient = mock<CloudWatchClient>()
+        val metricsPublisher = MetricsPublisher(mockCloudWatchClient)
         val processor = TestProcessor().apply { shouldThrow = true }
 
         whenever(mockSqsClient.receiveMessage(any<ReceiveMessageRequest>())).thenReturn(
@@ -150,13 +131,20 @@ class QueuePollerTest {
             sqsClient = mockSqsClient,
             queueUrl = TEST_QUEUE_URL,
             processor = processor,
-            metricsPublisher = mockMetricsPublisher
+            metricsPublisher = metricsPublisher
         )
 
         poller.pollAndProcess()
+        metricsPublisher.flush()
 
         verify(mockSqsClient, never()).deleteMessage(any())
-        verify(mockMetricsPublisher).publishMetric("MessagesProcessedFailure", 1.0)
+        val metricRequests = argumentCaptor<PutMetricDataRequest>()
+        verify(mockCloudWatchClient).putMetricData(metricRequests.capture())
+        assertEquals(
+            listOf(MetricsPublisher.FAILURE_METRIC_NAME),
+            metricRequests.firstValue.metricData?.map { it.metricName }
+        )
+        assertEquals(1.0, metricRequests.firstValue.metricData?.single()?.value)
     }
 
     @Test
@@ -194,6 +182,8 @@ class QueuePollerTest {
     @Test
     fun `processing cancellation is rethrown`() = runTest {
         val mockSqsClient = mock<SqsClient>()
+        val mockCloudWatchClient = mock<CloudWatchClient>()
+        val metricsPublisher = MetricsPublisher(mockCloudWatchClient)
         whenever(mockSqsClient.receiveMessage(any<ReceiveMessageRequest>())).thenReturn(
             ReceiveMessageResponse {
                 messages = listOf(
@@ -214,9 +204,10 @@ class QueuePollerTest {
             sqsClient = mockSqsClient,
             queueUrl = TEST_QUEUE_URL,
             processor = processor,
-            metricsPublisher = mock()
+            metricsPublisher = metricsPublisher
         )
 
         assertFailsWith<CancellationException> { poller.pollAndProcess() }
+        metricsPublisher.flush()
     }
 }
