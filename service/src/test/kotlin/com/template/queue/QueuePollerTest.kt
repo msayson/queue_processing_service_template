@@ -5,10 +5,12 @@ import aws.sdk.kotlin.services.sqs.model.DeleteMessageRequest
 import aws.sdk.kotlin.services.sqs.model.Message
 import aws.sdk.kotlin.services.sqs.model.ReceiveMessageRequest
 import aws.sdk.kotlin.services.sqs.model.ReceiveMessageResponse
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.*
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class QueuePollerTest {
 
@@ -170,5 +172,51 @@ class QueuePollerTest {
         )
 
         poller.stop()
+
+        assertEquals(false, poller.running.get())
+    }
+
+    @Test
+    fun `polling cancellation is rethrown`() = runTest {
+        val mockSqsClient = mock<SqsClient>()
+        val poller = QueuePoller(
+            sqsClient = mockSqsClient,
+            queueUrl = TEST_QUEUE_URL,
+            processor = TestProcessor(),
+            metricsPublisher = mock()
+        )
+        whenever(mockSqsClient.receiveMessage(any<ReceiveMessageRequest>()))
+            .thenAnswer { throw CancellationException("poll cancelled") }
+
+        assertFailsWith<CancellationException> { poller.start() }
+    }
+
+    @Test
+    fun `processing cancellation is rethrown`() = runTest {
+        val mockSqsClient = mock<SqsClient>()
+        whenever(mockSqsClient.receiveMessage(any<ReceiveMessageRequest>())).thenReturn(
+            ReceiveMessageResponse {
+                messages = listOf(
+                    Message {
+                        messageId = TEST_MESSAGE_ID
+                        body = TEST_MESSAGE_BODY
+                        receiptHandle = TEST_RECEIPT_HANDLE
+                    }
+                )
+            }
+        )
+        val processor = object : MessageProcessor {
+            override suspend fun process(messageBody: String, messageId: String) {
+                throw CancellationException("processing cancelled")
+            }
+        }
+        val poller = QueuePoller(
+            sqsClient = mockSqsClient,
+            queueUrl = TEST_QUEUE_URL,
+            processor = processor,
+            metricsPublisher = mock()
+        )
+
+        assertFailsWith<CancellationException> { poller.pollAndProcess() }
     }
 }

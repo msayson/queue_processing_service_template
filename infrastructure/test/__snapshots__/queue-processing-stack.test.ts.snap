@@ -487,6 +487,14 @@ exports[`QueueProcessingServiceStack matches snapshot 1`] = `
                   "Ref": "InputQueueFD90041C",
                 },
               },
+              {
+                "Name": "NUM_WORKER_THREADS",
+                "Value": "1",
+              },
+              {
+                "Name": "WORKER_SHUTDOWN_GRACE_PERIOD_SECONDS",
+                "Value": "90",
+              },
             ],
             "Essential": true,
             "Image": {

@@ -4,9 +4,11 @@ import aws.sdk.kotlin.services.sqs.SqsClient
 import aws.sdk.kotlin.services.sqs.model.DeleteMessageRequest
 import aws.sdk.kotlin.services.sqs.model.ReceiveMessageRequest
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import java.util.concurrent.atomic.AtomicBoolean
 
 private val logger = KotlinLogging.logger {}
 
@@ -16,28 +18,32 @@ class QueuePoller(
     private val processor: MessageProcessor,
     private val metricsPublisher: MetricsPublisher,
     private val maxMessages: Int = 10,
-    private val waitTimeSeconds: Int = 20
+    private val waitTimeSeconds: Int = 20,
+    /**
+     * Controls whether this poller keeps running.  The caller flips this to `false`
+     * to request a graceful stop after the current poll-and-process iteration.
+     */
+    val running: AtomicBoolean = AtomicBoolean(true)
 ) {
-    @Volatile
-    private var running = true
-
     suspend fun start() {
-        logger.info { "Starting queue poller: queueUrl=$queueUrl" }
-        
-        while (running) {
+        logger.debug { "Starting queue poller: queueUrl=$queueUrl" }
+
+        while (running.get()) {
             try {
                 pollAndProcess()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 logger.error(e) { "Error in polling loop" }
             }
         }
-        
-        logger.info { "Queue poller stopped" }
+
+        logger.debug { "Queue poller stopped" }
     }
 
     fun stop() {
-        logger.info { "Stopping queue poller" }
-        running = false
+        logger.debug { "Stopping queue poller" }
+        running.set(false)
     }
 
     internal suspend fun pollAndProcess() = coroutineScope {
@@ -53,8 +59,6 @@ class QueuePoller(
             return@coroutineScope
         }
 
-        logger.info { "Received ${messages.size} messages" }
-
         messages.map { message ->
             async {
                 val messageId = message.messageId ?: "unknown"
@@ -63,15 +67,16 @@ class QueuePoller(
 
                 try {
                     processor.process(body, messageId)
-                    
+
                     if (receiptHandle != null) {
                         sqsClient.deleteMessage(DeleteMessageRequest {
                             this.queueUrl = this@QueuePoller.queueUrl
                             this.receiptHandle = receiptHandle
                         })
-                        logger.info { "Message processed successfully: messageId=$messageId" }
                         metricsPublisher.publishMetric("MessagesProcessedSuccess", 1.0)
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     logger.error(e) { "Failed to process message: messageId=$messageId" }
                     metricsPublisher.publishMetric("MessagesProcessedFailure", 1.0)

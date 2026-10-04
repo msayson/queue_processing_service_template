@@ -14,6 +14,8 @@ class ConfigurationTest {
         System.clearProperty("MAX_MESSAGES")
         System.clearProperty("WAIT_TIME_SECONDS")
         System.clearProperty("VISIBILITY_TIMEOUT")
+        System.clearProperty("NUM_WORKER_THREADS")
+        System.clearProperty("WORKER_SHUTDOWN_GRACE_PERIOD_SECONDS")
     }
 
     @Test
@@ -28,6 +30,8 @@ class ConfigurationTest {
         assertEquals(10, config.maxMessages)
         assertEquals(20, config.waitTimeSeconds)
         assertEquals(300, config.visibilityTimeout)
+        assertEquals(1, config.numWorkerThreads)
+        assertEquals(30, config.workerShutdownGracePeriodSeconds)
     }
 
     @Test
@@ -37,12 +41,16 @@ class ConfigurationTest {
         System.setProperty("MAX_MESSAGES", "5")
         System.setProperty("WAIT_TIME_SECONDS", "10")
         System.setProperty("VISIBILITY_TIMEOUT", "600")
+        System.setProperty("NUM_WORKER_THREADS", "4")
+        System.setProperty("WORKER_SHUTDOWN_GRACE_PERIOD_SECONDS", "60")
 
         val config = Configuration.fromEnvironment()
 
         assertEquals(5, config.maxMessages)
         assertEquals(10, config.waitTimeSeconds)
         assertEquals(600, config.visibilityTimeout)
+        assertEquals(4, config.numWorkerThreads)
+        assertEquals(60, config.workerShutdownGracePeriodSeconds)
     }
 
     @Test

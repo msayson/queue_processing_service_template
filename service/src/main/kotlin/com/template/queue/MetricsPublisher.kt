@@ -13,6 +13,14 @@ class MetricsPublisher(
     private val cloudWatchClient: CloudWatchClient,
     private val namespace: String = "QueueProcessingService"
 ) {
+    /**
+     * Flushes any metrics buffered in memory.  The current implementation sends
+     * each metric immediately on [publishMetric], so there is nothing to flush.
+     * TODO: implement batching and flushing logic.
+     */
+    suspend fun flush() {
+    }
+
     suspend fun publishMetric(metricName: String, value: Double, unit: String = "Count") {
         try {
             val metricDatum = MetricDatum {
@@ -26,8 +34,6 @@ class MetricsPublisher(
                 this.namespace = this@MetricsPublisher.namespace
                 this.metricData = listOf(metricDatum)
             })
-
-            logger.debug { "Published metric: $metricName=$value $unit" }
         } catch (e: Exception) {
             logger.error(e) { "Failed to publish metric: $metricName" }
         }

@@ -5,7 +5,9 @@ data class Configuration(
     val awsRegion: String,
     val maxMessages: Int = 10,
     val waitTimeSeconds: Int = 20,
-    val visibilityTimeout: Int = 300
+    val visibilityTimeout: Int = 300,
+    val numWorkerThreads: Int = 1,
+    val workerShutdownGracePeriodSeconds: Int = 30
 ) {
     companion object {
         fun fromEnvironment(): Configuration {
@@ -16,13 +18,17 @@ data class Configuration(
             val maxMessages = (System.getenv("MAX_MESSAGES") ?: System.getProperty("MAX_MESSAGES"))?.toIntOrNull() ?: 10
             val waitTimeSeconds = (System.getenv("WAIT_TIME_SECONDS") ?: System.getProperty("WAIT_TIME_SECONDS"))?.toIntOrNull() ?: 20
             val visibilityTimeout = (System.getenv("VISIBILITY_TIMEOUT") ?: System.getProperty("VISIBILITY_TIMEOUT"))?.toIntOrNull() ?: 300
+            val numWorkerThreads = (System.getenv("NUM_WORKER_THREADS") ?: System.getProperty("NUM_WORKER_THREADS"))?.toIntOrNull() ?: 1
+            val workerShutdownGracePeriodSeconds = (System.getenv("WORKER_SHUTDOWN_GRACE_PERIOD_SECONDS") ?: System.getProperty("WORKER_SHUTDOWN_GRACE_PERIOD_SECONDS"))?.toIntOrNull() ?: 30
 
             return Configuration(
                 queueUrl = queueUrl,
                 awsRegion = awsRegion,
                 maxMessages = maxMessages,
                 waitTimeSeconds = waitTimeSeconds,
-                visibilityTimeout = visibilityTimeout
+                visibilityTimeout = visibilityTimeout,
+                numWorkerThreads = numWorkerThreads,
+                workerShutdownGracePeriodSeconds = workerShutdownGracePeriodSeconds
             )
         }
     }

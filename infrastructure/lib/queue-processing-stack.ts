@@ -92,6 +92,12 @@ export class QueueProcessingServiceStack extends Stack {
       environment: {
         AWS_REGION: this.region,
         QUEUE_URL: queue.queueUrl,
+        // Number of concurrent SQS polling threads per Fargate task.
+        NUM_WORKER_THREADS: '4',
+        // How long (seconds) the main thread waits for in-flight workers to finish
+        // after receiving SIGTERM before flushing metrics and shutting down.
+        // Must be less than the container stopTimeout.
+        WORKER_SHUTDOWN_GRACE_PERIOD_SECONDS: '90',
       },
       logging: LogDrivers.awsLogs({
         streamPrefix: 'queue-processing-service',

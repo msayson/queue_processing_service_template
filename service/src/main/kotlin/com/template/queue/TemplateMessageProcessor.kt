@@ -6,11 +6,10 @@ private val logger = KotlinLogging.logger {}
 
 class TemplateMessageProcessor : MessageProcessor {
     override suspend fun process(messageBody: String, messageId: String) {
-        logger.info { "Processing message: messageId=$messageId" }
-        logger.debug { "Message body: $messageBody" }
-        
+        logger.debug { "Processing message: messageId=$messageId, body=$messageBody" }
+
         // Template implementation - replace with actual business logic
-        
-        logger.info { "Message processed successfully: messageId=$messageId" }
+
+        logger.debug { "Message processed successfully: messageId=$messageId" }
     }
 }
