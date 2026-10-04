@@ -4,5 +4,5 @@ See `infrastructure/CLAUDE.md` for the current implementation.
 
 ## Design constraints
 - ARM64 (Graviton2) throughout — ECS task definition, Docker builds (`--platform linux/arm64`), and base images
-- Private-with-egress VPC: ECS tasks run in private subnets with outbound internet access via a NAT gateway (no public IPs, no inbound from internet); VPC endpoints keep AWS service traffic off NAT
+- Private-with-egress VPC: ECS tasks run in private subnets with outbound internet access via NAT gateways — one per AZ in prod, one total in non-prod stages (no public IPs, no inbound from internet); VPC endpoints keep AWS service traffic off NAT
 - Least-privilege IAM: use `grantConsumeMessages` pattern rather than inline policies

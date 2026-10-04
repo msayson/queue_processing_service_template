@@ -63,7 +63,7 @@ export AWS_DEFAULT_REGION=us-east-1
 
 ## Service Development (`service/`)
 
-### Build
+### Build and run tests
 
 ```bash
 cd service

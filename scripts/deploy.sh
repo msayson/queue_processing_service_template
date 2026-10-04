@@ -5,7 +5,8 @@ set -euo pipefail
 # Usage
 # ---------------------------------------------------------------------------
 usage() {
-    echo "Usage: $0 --awsAccountId ACCOUNT_ID --awsRegion REGION"
+    echo "Usage: $0 --awsAccountId ACCOUNT_ID --awsRegion REGION [--stage STAGE]"
+    echo "  STAGE defaults to 'dev' (single NAT gateway); 'prod' uses one NAT gateway per AZ"
     exit 1
 }
 
@@ -14,6 +15,7 @@ usage() {
 # ---------------------------------------------------------------------------
 AWS_ACCOUNT_ID=""
 AWS_REGION=""
+STAGE="dev"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -23,6 +25,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --awsRegion)
             AWS_REGION="${2:?--awsRegion requires a value}"
+            shift 2
+            ;;
+        --stage)
+            STAGE="${2:?--stage requires a value}"
             shift 2
             ;;
         *)
@@ -52,6 +58,7 @@ npm install
 export QUEUE_PROCESSING_ACCOUNT="$AWS_ACCOUNT_ID"
 export QUEUE_PROCESSING_REGION="$AWS_REGION"
 export QUEUE_NAME="QueueProcessingService-InputQueue"
+export STAGE
 
 echo "==> Bootstrapping CDK environment (safe to re-run)..."
 npx cdk bootstrap "aws://$AWS_ACCOUNT_ID/$AWS_REGION"

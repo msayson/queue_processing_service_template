@@ -10,7 +10,13 @@ const env = {
   region: process.env.QUEUE_PROCESSING_REGION,
 };
 
-const { vpc } = new VpcStack(app, 'VpcStack', { env });
+// Non-prod stages use a single NAT gateway to halve NAT cost
+const stage = process.env.STAGE ?? 'dev';
+
+const { vpc } = new VpcStack(app, 'VpcStack', {
+  env,
+  natGateways: stage === 'prod' ? 2 : 1,
+});
 
 new QueueProcessingServiceStack(app, 'QueueProcessingServiceStack', {
   env,

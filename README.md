@@ -4,7 +4,7 @@
 
 A template for building an AWS ECS Fargate queue processing service in Kotlin. This template provides infrastructure and service code for a service behind a private subset that polls an input SQS queue, auto-scales up/down based on backlog size, processes messages idempotently, handles failures gracefully, and emits observability metrics to CloudWatch.
 
-Hosting ECS compute services in a private subset is a recommended default for ensuring the service is only accessible from allow-listed services, and not from the public internet.  For low-risk personal projects with non-sensitive data, you can lower costs by hosting the service in a public subset and dropping the NAT gateway to save $32/month.
+Hosting ECS compute services in a private subset is a recommended default for ensuring the service is only accessible from allow-listed services, and not from the public internet.  For low-risk personal projects with non-sensitive data, you can lower costs by hosting the service in a public subset and dropping the NAT gateways to save ~$37/month per NAT gateway.
 
 ## Features
 
@@ -77,12 +77,12 @@ Hosting ECS compute services in a private subset is a recommended default for en
 `scripts/deploy.sh` handles the full deployment in the correct order: VPC stack → ECR repository → Docker build and push → service stack → ECS force-deploy.
 
 ```bash
-./scripts/deploy.sh --awsAccountId 123456789012 --awsRegion us-east-1
+./scripts/deploy.sh --awsAccountId 123456789012 --awsRegion us-east-1 [--stage prod]
 ```
 
 What the script does:
 1. Installs CDK dependencies and bootstraps the CDK environment
-2. Deploys `VpcStack` (VPC, NAT gateway)
+2. Deploys `VpcStack` (VPC, NAT gateways). `--stage` defaults to `dev`, which uses a single NAT gateway to halve NAT cost; `--stage prod` creates one NAT gateway per AZ for high availability
 3. Creates the ECR repository if it doesn't exist
 4. Builds the Docker image (`linux/arm64`) and pushes it to ECR
 5. Deploys `QueueProcessingServiceStack` (SQS, ECS, IAM, CloudWatch)
@@ -213,10 +213,12 @@ For 10,000 messages/day workload:
 - CloudWatch Logs (30-day retention): $1-2/month
 - Container Insights: < $1/month
 - ECR storage: $1/month
-- NAT Gateway: ~$32/month
+- NAT Gateway (incl. public IPv4 address): ~$37/month each
+  - Prod: 2 (one per AZ): ~$73/month
+  - Non-prod: 1: ~$37/month
 - **Total**:
-  - Dev with scale-to-zero + NAT: ~$36/month
-  - Prod 24/7 + NAT: ~$45/month
+  - Non-prod with scale-to-zero: ~$41/month
+  - Prod 24/7: ~$86/month
 
 ## Security
 

@@ -20,8 +20,9 @@ cdk bootstrap  # one-time setup per account/region
 ## Stacks
 
 **`VpcStack`** (`lib/vpc-stack.ts`) — networking only; exports `vpc`.
-- 2 AZs; public subnets hold the NAT gateway, private subnets (`PRIVATE_WITH_EGRESS`, `/24` each) hold ECS tasks
-- 1 NAT gateway (in a public subnet) — provides outbound internet/cross-account egress; ECS tasks have no public IPs so they are unreachable from the internet
+- 2 AZs; public subnets hold the NAT gateways, private subnets (`PRIVATE_WITH_EGRESS`, `/24` each) hold ECS tasks
+- `natGateways` prop (default 2, one per AZ, so egress survives an AZ failure); `bin/infrastructure.ts` sets 2 when `STAGE=prod`, else 1 (`STAGE` defaults to `dev`) to halve NAT cost
+- NAT gateways (in public subnets) — provide outbound internet/cross-account egress; ECS tasks have no public IPs so they are unreachable from the internet
 - VPC gateway endpoint: S3 (free; ECR stores image layers in S3)
 
 **`QueueProcessingServiceStack`** (`lib/queue-processing-stack.ts`) — consumes `vpc` via props; deployed after the image push.

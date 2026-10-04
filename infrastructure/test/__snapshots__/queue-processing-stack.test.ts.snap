@@ -489,7 +489,7 @@ exports[`QueueProcessingServiceStack matches snapshot 1`] = `
               },
               {
                 "Name": "NUM_WORKER_THREADS",
-                "Value": "1",
+                "Value": "4",
               },
               {
                 "Name": "WORKER_SHUTDOWN_GRACE_PERIOD_SECONDS",
