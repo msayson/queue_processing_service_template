@@ -28,12 +28,13 @@ class MetricsPublisherTest {
 
     companion object {
         private const val TEST_NAMESPACE = "TestNamespace"
+        private const val TEST_BUFFER_CAPACITY = 10
     }
 
     @Test
     fun `successful call queues failure zero and latency with a shared timestamp`() = runTest {
         val mockClient = mock<CloudWatchClient>()
-        val publisher = MetricsPublisher(mockClient, TEST_NAMESPACE)
+        val publisher = MetricsPublisher(mockClient, TEST_NAMESPACE, bufferCapacity = TEST_BUFFER_CAPACITY)
 
         publisher.measureCall { "result" }
         publisher.flush()
@@ -60,7 +61,7 @@ class MetricsPublisherTest {
     @Test
     fun `failed call queues failure one without latency and rethrows`() = runTest {
         val mockClient = mock<CloudWatchClient>()
-        val publisher = MetricsPublisher(mockClient, TEST_NAMESPACE)
+        val publisher = MetricsPublisher(mockClient, TEST_NAMESPACE, bufferCapacity = TEST_BUFFER_CAPACITY)
 
         assertFailsWith<IllegalStateException> {
             publisher.measureCall<Unit> { throw IllegalStateException("processing failed") }
@@ -79,7 +80,7 @@ class MetricsPublisherTest {
     @Test
     fun `cancellation emits no metrics and is rethrown`() = runTest {
         val mockClient = mock<CloudWatchClient>()
-        val publisher = MetricsPublisher(mockClient, TEST_NAMESPACE)
+        val publisher = MetricsPublisher(mockClient, TEST_NAMESPACE, bufferCapacity = TEST_BUFFER_CAPACITY)
 
         assertFailsWith<CancellationException> {
             publisher.measureCall<Unit> { throw CancellationException("cancelled") }
@@ -92,7 +93,7 @@ class MetricsPublisherTest {
     @Test
     fun `bad input 4xx errors emit no metrics`() = runTest {
         val mockClient = mock<CloudWatchClient>()
-        val publisher = MetricsPublisher(mockClient, TEST_NAMESPACE)
+        val publisher = MetricsPublisher(mockClient, TEST_NAMESPACE, bufferCapacity = TEST_BUFFER_CAPACITY)
         val clientError = serviceException(HttpStatusCode.BadRequest, "ValidationException")
 
         assertFailsWith<ServiceException> {
@@ -106,7 +107,7 @@ class MetricsPublisherTest {
     @Test
     fun `throttling and access denied 4xx errors queue failure one`() = runTest {
         val mockClient = mock<CloudWatchClient>()
-        val publisher = MetricsPublisher(mockClient, TEST_NAMESPACE)
+        val publisher = MetricsPublisher(mockClient, TEST_NAMESPACE, bufferCapacity = TEST_BUFFER_CAPACITY)
         val errors = listOf(
             serviceException(HttpStatusCode.BadRequest, "ThrottlingException"),
             serviceException(HttpStatusCode.Forbidden, "AccessDeniedException"),
@@ -130,7 +131,7 @@ class MetricsPublisherTest {
     fun `flush gives up when CloudWatch hangs`() = runTest {
         val mockClient = mock<CloudWatchClient>()
         whenever(mockClient.putMetricData(any())).doSuspendableAnswer { awaitCancellation() }
-        val publisher = MetricsPublisher(mockClient, TEST_NAMESPACE, flushTimeoutMillis = 1_000)
+        val publisher = MetricsPublisher(mockClient, TEST_NAMESPACE, bufferCapacity = TEST_BUFFER_CAPACITY, flushTimeoutMillis = 1_000)
 
         publisher.measureCall { "ok" }
         publisher.flush()
@@ -151,9 +152,9 @@ class MetricsPublisherTest {
     fun `CloudWatch failure discards batch without retry`() = runTest {
         val mockClient = mock<CloudWatchClient>()
         whenever(mockClient.putMetricData(any())).thenThrow(IllegalStateException("CloudWatch unavailable"))
-        val publisher = MetricsPublisher(mockClient, TEST_NAMESPACE)
+        val publisher = MetricsPublisher(mockClient, TEST_NAMESPACE, bufferCapacity = TEST_BUFFER_CAPACITY)
 
-        publisher.measureCall { Unit }
+        publisher.measureCall {}
         publisher.flush()
 
         verify(mockClient, times(1)).putMetricData(any())
@@ -162,10 +163,11 @@ class MetricsPublisherTest {
     @Test
     fun `flush batches observations into requests of at most one thousand`() = runTest {
         val mockClient = mock<CloudWatchClient>()
-        val publisher = MetricsPublisher(mockClient, TEST_NAMESPACE)
+        // Batching needs more than one request's worth of datums: 501 calls x 2 datums.
+        val publisher = MetricsPublisher(mockClient, TEST_NAMESPACE, bufferCapacity = 1_002)
 
         repeat(501) {
-            publisher.measureCall { Unit }
+            publisher.measureCall {}
         }
         publisher.flush()
 
@@ -178,15 +180,16 @@ class MetricsPublisherTest {
     @Test
     fun `full buffer drops excess observations without blocking`() = runTest {
         val mockClient = mock<CloudWatchClient>()
-        val publisher = MetricsPublisher(mockClient, TEST_NAMESPACE)
+        val publisher = MetricsPublisher(mockClient, TEST_NAMESPACE, bufferCapacity = TEST_BUFFER_CAPACITY)
 
-        repeat(25_001) {
-            publisher.measureCall { Unit }
+        // Each successful call queues 2 datums, so this offers 2 more than fit.
+        repeat(TEST_BUFFER_CAPACITY / 2 + 1) {
+            publisher.measureCall {}
         }
         publisher.flush()
 
         val requests = argumentCaptor<PutMetricDataRequest>()
-        verify(mockClient, times(50)).putMetricData(requests.capture())
-        assertEquals(50_000, requests.allValues.sumOf { it.metricData.orEmpty().size })
+        verify(mockClient, times(1)).putMetricData(requests.capture())
+        assertEquals(TEST_BUFFER_CAPACITY, requests.firstValue.metricData.orEmpty().size)
     }
 }

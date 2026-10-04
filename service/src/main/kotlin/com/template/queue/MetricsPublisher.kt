@@ -23,9 +23,10 @@ private val logger = KotlinLogging.logger {}
 class MetricsPublisher(
     private val cloudWatchClient: CloudWatchClient,
     private val namespace: String = "QueueProcessingService",
+    bufferCapacity: Int = DEFAULT_BUFFER_CAPACITY,
     private val flushTimeoutMillis: Long = FLUSH_TIMEOUT_SECONDS * 1_000
 ) {
-    private val buffer = ArrayBlockingQueue<MetricDatum>(BUFFER_CAPACITY)
+    private val buffer = ArrayBlockingQueue<MetricDatum>(bufferCapacity)
     private val droppedDatumCount = AtomicLong()
     private val acceptingMetrics = AtomicBoolean(true)
     private val scheduler = Executors.newSingleThreadScheduledExecutor { task ->
@@ -181,7 +182,7 @@ class MetricsPublisher(
             "MalformedQueryString",
         )
 
-        const val BUFFER_CAPACITY = 50_000
+        const val DEFAULT_BUFFER_CAPACITY = 100_000
         const val DRAIN_DELAY_SECONDS = 15L
         // Fits within the 30 s left between the 90 s worker grace period and the 120 s stopTimeout.
         const val FLUSH_TIMEOUT_SECONDS = 20L
