@@ -1,6 +1,8 @@
 # syntax=docker/dockerfile:1
 # Multi-stage build for minimal image size
-FROM amazoncorretto:25-alpine-jdk AS build
+# Build stage runs on the builder's native platform: the JAR is platform-independent,
+# and running Gradle under QEMU emulation (e.g. arm64 on an x86 host) is ~9x slower.
+FROM --platform=$BUILDPLATFORM amazoncorretto:25-alpine-jdk AS build
 WORKDIR /app
 
 # Copy Gradle wrapper and config first for better caching
@@ -15,16 +17,20 @@ RUN mkdir -p /root/.gradle && \
 
 # Resolve and download runtime dependencies before copying source.
 # Scoped to runtimeClasspath to avoid downloading test-only dependencies (Testcontainers,
-# Mockito, JUnit) here — those are fetched during the build step instead.
+# Mockito, JUnit), which the image build never needs.
 # This layer is only invalidated when build.gradle.kts or settings.gradle.kts change,
-# not on every source code change. The wrapper cache mount avoids re-downloading
-# the Gradle distribution (~150MB) on every build.
-RUN --mount=type=cache,target=/root/.gradle/wrapper/dists \
+# not on every source code change. Cache mounts persist the Gradle distribution
+# (~150MB) and downloaded dependencies across builds, so a build file change does
+# not re-download everything.
+RUN --mount=type=cache,target=/root/.gradle/caches \
+    --mount=type=cache,target=/root/.gradle/wrapper \
     ./gradlew --no-daemon dependencies --configuration runtimeClasspath
 
-# Copy source code and build
+# Copy source code and build the fat JAR only; tests run in CI, not the image build
 COPY src ./src
-RUN ./gradlew build --no-daemon
+RUN --mount=type=cache,target=/root/.gradle/caches \
+    --mount=type=cache,target=/root/.gradle/wrapper \
+    ./gradlew --no-daemon shadowJar
 
 # Runtime image
 FROM amazoncorretto:25-alpine-jdk

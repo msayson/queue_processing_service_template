@@ -49,7 +49,15 @@ SERVICE_STACK="QueueProcessingServiceStack"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # ---------------------------------------------------------------------------
-# Step 1: Deploy VpcStack (networking only)
+# Step 1: Build and test the service before deploying anything. The Docker
+# image build only packages the JAR, so this is the deploy's test gate.
+# ---------------------------------------------------------------------------
+echo "==> Building and testing service..."
+cd "$ROOT_DIR/service"
+./gradlew build
+
+# ---------------------------------------------------------------------------
+# Step 2: Deploy QueueProcessorVpcStack (networking only)
 # ---------------------------------------------------------------------------
 echo "==> Installing CDK dependencies..."
 cd "$ROOT_DIR/infrastructure"
@@ -63,11 +71,11 @@ export STAGE
 echo "==> Bootstrapping CDK environment (safe to re-run)..."
 npx cdk bootstrap "aws://$AWS_ACCOUNT_ID/$AWS_REGION"
 
-echo "==> Deploying VpcStack..."
-npx cdk deploy VpcStack --require-approval never
+echo "==> Deploying QueueProcessorVpcStack..."
+npx cdk deploy QueueProcessorVpcStack --require-approval never
 
 # ---------------------------------------------------------------------------
-# Step 2: Ensure ECR repository exists, then authenticate and push the image.
+# Step 3: Ensure ECR repository exists, then authenticate and push the image.
 # The repository must exist before QueueProcessingServiceStack is deployed so
 # the ECS service can pull the image on creation and CloudFormation can reach
 # a stable state without a CannotPullContainerError.
@@ -87,7 +95,7 @@ aws ecr get-login-password --region "$AWS_REGION" | \
     docker login --username AWS --password-stdin "$ECR_REGISTRY"
 
 # ---------------------------------------------------------------------------
-# Step 3: Build and push the Docker image (linux/arm64 matches ECS task definition)
+# Step 4: Build and push the Docker image (linux/arm64 matches ECS task definition)
 # ---------------------------------------------------------------------------
 echo "==> Checking Docker daemon is running..."
 docker info > /dev/null 2>&1 || { echo "ERROR: Docker daemon is not running. Start Docker Desktop and retry."; exit 1; }
@@ -99,14 +107,14 @@ docker buildx build --platform linux/arm64 \
     --push .
 
 # ---------------------------------------------------------------------------
-# Step 4: Deploy QueueProcessingServiceStack (image now in ECR)
+# Step 5: Deploy QueueProcessingServiceStack (image now in ECR)
 # ---------------------------------------------------------------------------
 cd "$ROOT_DIR/infrastructure"
 echo "==> Deploying QueueProcessingServiceStack..."
 npx cdk deploy QueueProcessingServiceStack --require-approval never
 
 # ---------------------------------------------------------------------------
-# Step 5: Force a new ECS deployment so the task pulls the new image immediately
+# Step 6: Force a new ECS deployment so the task pulls the new image immediately
 # ---------------------------------------------------------------------------
 echo "==> Forcing new ECS deployment..."
 

@@ -74,19 +74,20 @@ Hosting ECS compute services in a private subset is a recommended default for en
 
 ### Deploy
 
-`scripts/deploy.sh` handles the full deployment in the correct order: VPC stack → ECR repository → Docker build and push → service stack → ECS force-deploy.
+`scripts/deploy.sh` handles the full deployment in the correct order: build and test → VPC stack → ECR repository → Docker build and push → service stack → ECS force-deploy.
 
 ```bash
 ./scripts/deploy.sh --awsAccountId 123456789012 --awsRegion us-east-1 [--stage prod]
 ```
 
 What the script does:
-1. Installs CDK dependencies and bootstraps the CDK environment
-2. Deploys `VpcStack` (VPC, NAT gateways). `--stage` defaults to `dev`, which uses a single NAT gateway to halve NAT cost; `--stage prod` creates one NAT gateway per AZ for high availability
-3. Creates the ECR repository if it doesn't exist
-4. Builds the Docker image (`linux/arm64`) and pushes it to ECR
-5. Deploys `QueueProcessingServiceStack` (SQS, ECS, IAM, CloudWatch)
-6. Forces a new ECS deployment to pull the latest image
+1. Builds and tests the service (`./gradlew build`); a failing test aborts the deploy
+2. Installs CDK dependencies and bootstraps the CDK environment
+3. Deploys `QueueProcessorVpcStack` (VPC, NAT gateways). `--stage` defaults to `dev`, which uses a single NAT gateway to halve NAT cost; `--stage prod` creates one NAT gateway per AZ for high availability
+4. Creates the ECR repository if it doesn't exist
+5. Builds the Docker image (`linux/arm64`) and pushes it to ECR
+6. Deploys `QueueProcessingServiceStack` (SQS, ECS, IAM, CloudWatch)
+7. Forces a new ECS deployment to pull the latest image
 
 ### Verify
 
