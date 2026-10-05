@@ -2,9 +2,9 @@
 
 [![Unit tests](https://github.com/msayson/queue_processing_service_template/actions/workflows/test.yml/badge.svg)](https://github.com/msayson/queue_processing_service_template/actions/workflows/test.yml)
 
-A template for building an AWS ECS Fargate queue processing service in Kotlin. This template provides infrastructure and service code for a service behind a private subset that polls an input SQS queue, auto-scales up/down based on backlog size, processes messages idempotently, handles failures gracefully, and emits observability metrics to CloudWatch.
+A template for building an AWS ECS Fargate queue processing service in Kotlin. This template provides infrastructure and service code for a service behind a private subnet that polls an input SQS queue, auto-scales up/down based on backlog size, processes messages idempotently, handles failures gracefully, and emits observability metrics to CloudWatch.
 
-Hosting ECS compute services in a private subset is a recommended default for ensuring the service is only accessible from allow-listed services, and not from the public internet.  For low-risk personal projects with non-sensitive data, you can lower costs by hosting the service in a public subset and dropping the NAT gateways to save ~$37/month per NAT gateway.
+Hosting ECS compute services in a private subnet is a recommended default for ensuring the service is only accessible from allow-listed services, and not from the public internet.  For low-risk personal projects with non-sensitive data, you can lower costs by hosting the service in a public subnet and dropping the NAT gateways to save ~$37/month per NAT gateway.
 
 ## Features
 
@@ -34,6 +34,8 @@ Hosting ECS compute services in a private subset is a recommended default for en
                ▼
 ┌─────────────────────────────────────────────────────┐
 │              ECS Fargate Service                    │
+│  Private subnets (2 AZs), no inbound access;        │
+│  outbound via NAT gateways                          │
 │  ┌───────────────────────────────────────────────┐  │
 │  │  Kotlin Application                           │  │
 │  │  • Polls SQS continuously                     │  │
@@ -60,6 +62,7 @@ Hosting ECS compute services in a private subset is a recommended default for en
 - **AWS account** with permissions to create VPC, ECS, SQS, ECR, IAM, and CloudWatch resources
 - **AWS CLI v2+** configured with credentials (`aws configure`)
 - **Node.js 24+** (for CDK)
+- **JDK 17+** to run Gradle (JDK 25 recommended; Gradle auto-provisions it if missing)
 - **Docker Desktop** — see platform notes below
 
 #### Docker Desktop setup (Windows)
@@ -96,7 +99,7 @@ What the script does:
 # Note: when running on Windows, may need to use following instead to avoid the log group name being interpreted as a local filepath: MSYS_NO_PATHCONV=1 aws logs tail "/ecs/queue-processing-service" --follow
 aws logs tail /ecs/queue-processing-service --follow
 
-# Send a test message (replace QUEUE_URL with the QueueUrl stack output)
+# Send a test message (set REGION and ACCOUNT_ID, or use the QueueUrl stack output as --queue-url)
 aws sqs send-message \
   --queue-url "https://sqs.${REGION}.amazonaws.com/${ACCOUNT_ID}/QueueProcessingService-InputQueue" \
   --message-body '{"eventType":"TEST","data":"Hello World"}'
@@ -106,19 +109,23 @@ aws sqs send-message \
 
 ```
 queue_processing_service_template/
+├── .github/workflows/              # CI: unit tests for service and infrastructure
 ├── .kiro/                          # Kiro steering documents
 │   ├── PROJECT_OVERVIEW.md         # Architecture and requirements
 │   ├── INFRASTRUCTURE.md           # CDK implementation guide
 │   ├── DEPLOYMENT.md               # Build and deployment guide
+│   ├── VERSIONS.md                 # Centralized dependency versions
 │   └── steering/
 │       └── service-implementation.md  # Kotlin service guide (service/** only)
-├── docs/                           # Design documents and diagrams
+├── docs/                           # Architecture diagram (architecture.drawio, architecture.png)
 ├── infrastructure/                 # AWS CDK code (TypeScript)
 │   ├── bin/                        # CDK app entry point
 │   ├── lib/                        # Stack definitions
 │   ├── cdk.json
 │   ├── package.json
 │   └── tsconfig.json
+├── scripts/
+│   └── deploy.sh                   # End-to-end build, test, and deploy
 ├── service/                        # Kotlin service code
 │   ├── src/
 │   │   ├── main/kotlin/            # Application code
@@ -126,6 +133,7 @@ queue_processing_service_template/
 │   ├── build.gradle.kts
 │   └── Dockerfile
 ├── .gitignore
+├── DEVELOPMENT.md                  # Local development and testing guide
 ├── LICENSE
 └── README.md
 ```
@@ -197,7 +205,7 @@ Steering documents in `.kiro/`:
 
 - **Service**: Kotlin 2.3+ with AWS SDK for Kotlin
 - **Build**: Gradle 9+ with Kotlin DSL (build.gradle.kts)
-- **Runtime**: Amazon Corretto 25 JRE on Alpine Linux
+- **Runtime**: Amazon Corretto 25 JDK on Alpine Linux
 - **Infrastructure**: AWS CDK 2.x with TypeScript
 - **Hosting**: AWS ECS Fargate (ARM64/Graviton, private subnets)
 - **Queue**: AWS SQS with DLQ
@@ -223,6 +231,7 @@ For 10,000 messages/day workload:
 
 ## Security
 
+- Network isolation: tasks run in private subnets with no public IPs and no inbound internet access; outbound traffic goes through NAT gateways (one per AZ in prod)
 - IAM roles for ECS tasks (no hardcoded credentials)
 - Least-privilege IAM policies
 - CloudWatch Logs encryption
